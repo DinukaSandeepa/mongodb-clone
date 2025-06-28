@@ -96,7 +96,7 @@ export default function Home() {
       />
       
       {/* Main Content */}
-      <div className="flex-1">
+      <div className="flex-1 overflow-scroll h-screen">
         <div className="container mx-auto px-6 py-8 max-w-7xl">
           {renderContent()}
         </div>
