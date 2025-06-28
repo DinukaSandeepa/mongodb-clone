@@ -97,7 +97,7 @@ export default function Home() {
       
       {/* Main Content */}
       <div className="lg:pl-80">
-        <div className="container mx-auto px-6 py-8 max-w-7xl">
+        <div className="container mx-auto px-6 py-4 max-w-7xl">
           {renderContent()}
         </div>
       </div>
