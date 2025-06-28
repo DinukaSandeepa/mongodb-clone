@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import DashboardContent from '@/components/DashboardContent';
 import JobsContent from '@/components/JobsContent';
@@ -11,26 +9,13 @@ import SettingsContent from '@/components/SettingsContent';
 import { getCloneJobs } from '@/app/actions/clone-job-actions';
 
 export default function Home() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (status === 'loading') return; // Still loading session
-    
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin');
-      return;
-    }
-  }, [status, router]);
-
-  useEffect(() => {
     async function fetchJobs() {
-      if (status !== 'authenticated') return;
-      
       try {
         const result = await getCloneJobs();
         
@@ -51,39 +36,22 @@ export default function Home() {
     }
 
     fetchJobs();
-  }, [status]);
+  }, []);
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardContent jobs={jobs} session={session} />;
+        return <DashboardContent jobs={jobs} />;
       case 'jobs':
         return <JobsContent jobs={jobs} />;
       case 'history':
         return <HistoryContent />;
       case 'settings':
-        return <SettingsContent session={session} />;
+        return <SettingsContent />;
       default:
-        return <DashboardContent jobs={jobs} session={session} />;
+        return <DashboardContent jobs={jobs} />;
     }
   };
-
-  // Show loading while checking authentication
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Authenticating...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Redirect to sign in if not authenticated
-  if (status === 'unauthenticated') {
-    return null; // Will redirect in useEffect
-  }
 
   if (loading) {
     return (
@@ -125,7 +93,6 @@ export default function Home() {
         activeTab={activeTab} 
         onTabChange={setActiveTab}
         jobCount={jobs.length}
-        session={session}
       />
       
       {/* Main Content */}

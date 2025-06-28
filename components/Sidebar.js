@@ -1,10 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
 import { 
   Database, 
   Copy, 
@@ -15,13 +14,11 @@ import {
   X,
   Activity,
   Shield,
-  Zap,
-  LogOut,
-  User
+  Zap
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export default function Sidebar({ activeTab, onTabChange, jobCount = 0, session }) {
+export default function Sidebar({ activeTab, onTabChange, jobCount = 0 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const navigationItems = [
@@ -70,20 +67,6 @@ export default function Sidebar({ activeTab, onTabChange, jobCount = 0, session 
     }
   ];
 
-  const handleSignOut = async () => {
-    await signOut({ callbackUrl: '/auth/signin' });
-  };
-
-  const getUserInitials = (name) => {
-    if (!name) return 'U';
-    return name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
   return (
     <>
       {/* Mobile overlay */}
@@ -126,28 +109,6 @@ export default function Sidebar({ activeTab, onTabChange, jobCount = 0, session 
             {isCollapsed ? <Menu className="h-4 w-4" /> : <X className="h-4 w-4" />}
           </Button>
         </div>
-
-        {/* User Info */}
-        {!isCollapsed && session && (
-          <div className="p-4 border-b bg-muted/30">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10">
-                <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                  {getUserInitials(session.user?.name)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{session.user?.name}</p>
-                <p className="text-xs text-muted-foreground truncate">{session.user?.email}</p>
-                {session.user?.role && (
-                  <Badge variant="secondary" className="text-xs mt-1">
-                    {session.user.role}
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Scrollable content area */}
         <div className="flex-1 w-full">
@@ -247,28 +208,19 @@ export default function Sidebar({ activeTab, onTabChange, jobCount = 0, session 
           )}
         </div>
 
-        {/* Footer - Sign Out */}
-        <div className="p-4 border-t flex-shrink-0">
-          {!isCollapsed ? (
-            <Button
-              variant="outline"
-              className="w-full justify-start gap-3"
-              onClick={handleSignOut}
-            >
-              <LogOut className="h-4 w-4" />
-              <span>Sign Out</span>
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full p-2"
-              onClick={handleSignOut}
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
+        {/* Footer - only show when not collapsed */}
+        {!isCollapsed && (
+          <div className="p-4 border-t bg-muted/30 flex-shrink-0">
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">
+                MongoDB Clone Manager v1.0
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Built with Next.js & shadcn/ui
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
