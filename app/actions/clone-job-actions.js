@@ -70,25 +70,29 @@ export async function getCloneJobs() {
     if (!connection) {
       // Return mock data when no database connection
       console.log('Using mock clone jobs data');
-      return mockJobs.map(job => ({
+      const jobs = mockJobs.map(job => ({
         ...job,
         _id: job._id.toString(),
       }));
+      return { success: true, jobs };
     }
 
     const jobs = await CloneJob.find({}).sort({ createdAt: -1 }).lean();
     
     // Convert MongoDB ObjectId to string for serialization
-    return jobs.map(job => ({
+    const serializedJobs = jobs.map(job => ({
       ...job,
       _id: job._id.toString(),
     }));
+    
+    return { success: true, jobs: serializedJobs };
   } catch (error) {
     console.error('Error fetching clone jobs:', error);
-    // Return mock data as fallback
-    return mockJobs.map(job => ({
+    // Return mock data as fallback with success format
+    const jobs = mockJobs.map(job => ({
       ...job,
       _id: job._id.toString(),
     }));
+    return { success: true, jobs };
   }
 }
