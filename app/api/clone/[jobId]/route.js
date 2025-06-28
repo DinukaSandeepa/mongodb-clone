@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
-import dbConnect from '@/lib/mongodb';
-import CloneJob from '@/models/CloneJob';
+import { getCloneJobById } from '@/app/actions/clone-job-actions';
 import { createCloneHistory } from '@/app/actions/clone-history-actions';
 
 export async function POST(request, { params }) {
@@ -9,17 +8,17 @@ export async function POST(request, { params }) {
   const startTime = new Date();
   
   try {
-    // Get job details from our database
-    await dbConnect();
-    const job = await CloneJob.findById(jobId);
+    // Get job details from our database (this will handle decryption)
+    const jobResult = await getCloneJobById(jobId);
     
-    if (!job) {
+    if (!jobResult.success || !jobResult.job) {
       return NextResponse.json(
         { success: false, message: 'Job not found' },
         { status: 404 }
       );
     }
 
+    const job = jobResult.job;
     const { sourceConnectionString, destinationConnectionString } = job;
 
     console.log('Starting clone job:', job.jobName);
@@ -326,9 +325,9 @@ export async function POST(request, { params }) {
     };
 
     try {
-      const job = await CloneJob.findById(jobId);
-      if (job) {
-        failedHistoryData.jobName = job.jobName;
+      const jobResult = await getCloneJobById(jobId);
+      if (jobResult.success && jobResult.job) {
+        failedHistoryData.jobName = jobResult.job.jobName;
       }
     } catch (jobError) {
       console.error('Could not fetch job details for history:', jobError);

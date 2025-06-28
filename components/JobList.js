@@ -109,11 +109,6 @@ export default function JobList({ jobs, onJobsChange }) {
 
   const getConnectionStringDisplay = (connectionString, jobId) => {
     const isVisible = showConnectionStrings.has(jobId);
-    const encrypted = isEncrypted(connectionString);
-    
-    if (encrypted && !isVisible) {
-      return '🔒 [Encrypted Connection String]';
-    }
     
     if (!isVisible) {
       return maskConnectionString(connectionString);
@@ -158,7 +153,7 @@ export default function JobList({ jobs, onJobsChange }) {
               {jobs.map((job) => {
                 const isLoading = loadingJobs.has(job._id);
                 const isVisible = showConnectionStrings.has(job._id);
-                const hasEncryptedStrings = isEncrypted(job.sourceConnectionString) || isEncrypted(job.destinationConnectionString);
+                const hasEncryptedStrings = job.encrypted;
                 
                 return (
                   <div
