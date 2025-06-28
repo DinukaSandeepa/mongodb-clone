@@ -10,7 +10,6 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Settings, 
-  Database, 
   Shield, 
   Bell, 
   Zap,
@@ -121,7 +120,6 @@ export default function SettingsContent() {
             <h4 className="font-semibold text-yellow-800 mb-2">Settings to be reset:</h4>
             <div className="text-sm text-yellow-700 space-y-1">
               <p>• Security settings (encryption, confirmations)</p>
-              <p>• Database connection parameters</p>
               <p>• Performance and notification preferences</p>
               <p>• All custom configurations</p>
             </div>
@@ -142,7 +140,7 @@ export default function SettingsContent() {
           <p className="text-muted-foreground">Loading settings...</p>
         </div>
         <div className="grid gap-6 lg:grid-cols-2">
-          {[...Array(4)].map((_, i) => (
+          {[...Array(3)].map((_, i) => (
             <Card key={i}>
               <CardContent className="p-6">
                 <div className="animate-pulse space-y-4">
@@ -165,7 +163,7 @@ export default function SettingsContent() {
         <div className="space-y-2">
           <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
           <p className="text-muted-foreground">
-            Configure your application preferences and connection settings.
+            Configure your application preferences and security settings.
           </p>
           {settings.requireConfirmation && (
             <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -191,58 +189,6 @@ export default function SettingsContent() {
 
           <TabsContent value="general" className="space-y-6">
             <div className="grid gap-6 lg:grid-cols-2">
-              {/* Database Settings */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Database className="h-5 w-5" />
-                    Database Settings
-                  </CardTitle>
-                  <CardDescription>
-                    Configure default database connection parameters
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="connectionTimeout">Connection Timeout (ms)</Label>
-                    <Input
-                      id="connectionTimeout"
-                      type="number"
-                      value={settings.connectionTimeout || 15000}
-                      onChange={(e) => handleSettingChange('connectionTimeout', parseInt(e.target.value))}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="batchSize">Batch Size</Label>
-                    <Input
-                      id="batchSize"
-                      type="number"
-                      value={settings.batchSize || 1000}
-                      onChange={(e) => handleSettingChange('batchSize', parseInt(e.target.value))}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="defaultDatabase">Default Database Name</Label>
-                    <Input
-                      id="defaultDatabase"
-                      value={settings.defaultDatabase || 'busbuddy'}
-                      onChange={(e) => handleSettingChange('defaultDatabase', e.target.value)}
-                    />
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Switch 
-                      id="autoRetry" 
-                      checked={settings.autoRetry || false}
-                      onCheckedChange={(checked) => handleSettingChange('autoRetry', checked)}
-                    />
-                    <Label htmlFor="autoRetry">Auto-retry failed connections</Label>
-                  </div>
-                </CardContent>
-              </Card>
-
               {/* Security Settings */}
               <Card>
                 <CardHeader>
@@ -351,6 +297,26 @@ export default function SettingsContent() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="connectionTimeout">Connection Timeout (ms)</Label>
+                    <Input
+                      id="connectionTimeout"
+                      type="number"
+                      value={settings.connectionTimeout || 15000}
+                      onChange={(e) => handleSettingChange('connectionTimeout', parseInt(e.target.value))}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="batchSize">Batch Size</Label>
+                    <Input
+                      id="batchSize"
+                      type="number"
+                      value={settings.batchSize || 1000}
+                      onChange={(e) => handleSettingChange('batchSize', parseInt(e.target.value))}
+                    />
+                  </div>
+                  
                   <div className="space-y-2">
                     <Label htmlFor="maxConcurrent">Max Concurrent Operations</Label>
                     <Input
