@@ -43,36 +43,64 @@ export async function POST(request, { params }) {
       await destinationClient.connect();
       console.log('Connected to destination database');
 
-      // Get database names and inspect the source
-      const sourceAdmin = sourceClient.db().admin();
-      const destinationAdmin = destinationClient.db().admin();
+      // Extract database name from connection string
+      let sourceDbName = extractDatabaseName(sourceConnectionString);
+      let destinationDbName = extractDatabaseName(destinationConnectionString);
+      
+      console.log('Source database name from connection string:', sourceDbName);
+      console.log('Destination database name from connection string:', destinationDbName);
 
-      // List all databases on the source server
-      console.log('Listing all databases on source server...');
-      try {
-        const sourceDatabases = await sourceAdmin.listDatabases();
-        console.log('Available databases on source:', sourceDatabases.databases.map(db => ({
-          name: db.name,
-          sizeOnDisk: db.sizeOnDisk,
-          empty: db.empty
-        })));
-      } catch (error) {
-        console.log('Could not list databases (might not have admin privileges):', error.message);
+      // If no database name specified, try to find the main database
+      if (!sourceDbName) {
+        console.log('No database name specified in source connection string. Listing available databases...');
+        try {
+          const sourceAdmin = sourceClient.db().admin();
+          const sourceDatabases = await sourceAdmin.listDatabases();
+          console.log('Available databases on source:', sourceDatabases.databases.map(db => ({
+            name: db.name,
+            sizeOnDisk: db.sizeOnDisk,
+            empty: db.empty
+          })));
+
+          // Find the first non-system database with data
+          const userDatabases = sourceDatabases.databases.filter(db => 
+            !['admin', 'local', 'config', 'test'].includes(db.name) && !db.empty
+          );
+
+          if (userDatabases.length > 0) {
+            sourceDbName = userDatabases[0].name;
+            console.log(`Auto-selected source database: ${sourceDbName}`);
+          } else {
+            return NextResponse.json({
+              success: false,
+              message: `No user databases found with data. Available databases: ${sourceDatabases.databases.map(db => db.name).join(', ')}. Please specify a database name in your connection string like: mongodb+srv://user:pass@host/DATABASE_NAME?options`,
+              availableDatabases: sourceDatabases.databases.map(db => ({
+                name: db.name,
+                empty: db.empty,
+                sizeOnDisk: db.sizeOnDisk
+              }))
+            });
+          }
+        } catch (error) {
+          console.log('Could not list databases (might not have admin privileges):', error.message);
+          return NextResponse.json({
+            success: false,
+            message: 'No database name specified in connection string and cannot auto-detect. Please add the database name to your connection string like: mongodb+srv://user:pass@host/DATABASE_NAME?options'
+          });
+        }
       }
 
-      // Extract database name from connection string
-      const sourceDbName = extractDatabaseName(sourceConnectionString);
-      const destinationDbName = extractDatabaseName(destinationConnectionString);
-      
-      console.log('Source database name:', sourceDbName);
-      console.log('Destination database name:', destinationDbName);
+      // If no destination database name, use the same as source
+      if (!destinationDbName) {
+        destinationDbName = sourceDbName;
+        console.log(`Using same database name for destination: ${destinationDbName}`);
+      }
 
-      const sourceDb = sourceDbName ? sourceClient.db(sourceDbName) : sourceClient.db();
-      const destinationDb = destinationDbName ? destinationClient.db(destinationDbName) : destinationClient.db();
+      const sourceDb = sourceClient.db(sourceDbName);
+      const destinationDb = destinationClient.db(destinationDbName);
 
-      // Get current database name
-      const sourceDbInfo = await sourceDb.admin().command({ connectionStatus: 1 });
-      console.log('Actually connected to source database:', sourceDbInfo.authInfo?.authenticatedUserRoles?.[0]?.db || 'unknown');
+      console.log(`Using source database: ${sourceDbName}`);
+      console.log(`Using destination database: ${destinationDbName}`);
 
       // Test connections by getting database stats
       try {
@@ -85,70 +113,46 @@ export async function POST(request, { params }) {
           storageSize: sourceStats.storageSize,
           indexes: sourceStats.indexes
         });
+
+        if (sourceStats.collections === 0) {
+          return NextResponse.json({
+            success: false,
+            message: `Database '${sourceDbName}' exists but contains no collections. Please verify this is the correct database.`,
+            debug: {
+              sourceDbName,
+              destinationDbName,
+              collectionsFound: 0,
+              databaseExists: true
+            }
+          });
+        }
       } catch (error) {
         console.log('Could not get source database stats:', error.message);
       }
 
-      // Get all collections from source database with more detailed info
+      // Get all collections from source database
       console.log('Listing collections from source database...');
       const collections = await sourceDb.listCollections().toArray();
-      console.log('Raw collections response:', collections);
-      
-      // Also try alternative method to list collections
-      try {
-        const collectionNames = await sourceDb.listCollectionNames();
-        console.log('Collection names (alternative method):', collectionNames);
-      } catch (error) {
-        console.log('Alternative collection listing failed:', error.message);
-      }
+      console.log('Found collections:', collections.map(c => ({
+        name: c.name,
+        type: c.type
+      })));
 
-      // If no collections found, try to check if we can access any data
       if (collections.length === 0) {
-        console.log('No collections found. Checking database access...');
-        
-        // Try to run a simple command to verify database access
-        try {
-          const dbStats = await sourceDb.command({ dbStats: 1 });
-          console.log('Database stats command result:', dbStats);
-        } catch (error) {
-          console.log('Database stats command failed:', error.message);
-        }
-
-        // Try to check if there are any collections with a different approach
-        try {
-          const adminResult = await sourceDb.admin().command({ listCollections: 1 });
-          console.log('Admin listCollections result:', adminResult);
-        } catch (error) {
-          console.log('Admin listCollections failed:', error.message);
-        }
-
         return NextResponse.json({
           success: false,
-          message: `No collections found in source database '${sourceDbName || 'default'}'. This could mean:
-1. The database is empty
-2. You don't have permission to list collections
-3. The database name in your connection string is incorrect
-4. You're connecting to the wrong MongoDB instance
-
-Please verify:
-- Your connection string points to the correct database
-- The database name is correct (currently: '${sourceDbName || 'using default database'}')
-- You have read permissions on the source database
-- The database actually contains data`,
+          message: `No collections found in database '${sourceDbName}'. Please verify:
+1. The database name is correct
+2. You have read permissions on the database
+3. The database contains data`,
           debug: {
-            sourceDbName: sourceDbName || 'default',
-            destinationDbName: destinationDbName || 'default',
-            collectionsFound: collections.length,
+            sourceDbName,
+            destinationDbName,
+            collectionsFound: 0,
             connectionSuccessful: true
           }
         });
       }
-
-      console.log('Found collections:', collections.map(c => ({
-        name: c.name,
-        type: c.type,
-        options: c.options
-      })));
       
       let totalCollections = collections.length;
       let processedCollections = 0;
@@ -227,12 +231,14 @@ Please verify:
 
       return NextResponse.json({
         success: true,
-        message: `Successfully cloned ${processedCollections} collections with ${clonedDocuments} total documents`,
+        message: `Successfully cloned ${processedCollections} collections with ${clonedDocuments} total documents from database '${sourceDbName}' to '${destinationDbName}'`,
         stats: {
           totalCollections,
           processedCollections,
           totalDocuments,
           clonedDocuments,
+          sourceDatabase: sourceDbName,
+          destinationDatabase: destinationDbName
         }
       });
 
