@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,13 +15,39 @@ import {
   Server,
   Zap
 } from 'lucide-react';
+import { getCloneStats } from '@/app/actions/clone-history-actions';
 
 export default function DashboardContent({ jobs = [] }) {
-  const stats = {
+  const [stats, setStats] = useState({
+    totalOperations: 0,
+    successfulOperations: 0,
+    failedOperations: 0,
+    successRate: 0,
+    avgDuration: '0s',
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const result = await getCloneStats();
+        if (result.success) {
+          setStats(result.stats);
+        }
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchStats();
+  }, []);
+
+  const dashboardStats = {
     totalJobs: jobs.length,
     recentJobs: jobs.slice(0, 3),
-    successRate: jobs.length > 0 ? 100 : 0, // Placeholder
-    avgTime: '2.3s' // Placeholder
+    ...stats
   };
 
   return (
@@ -41,7 +68,7 @@ export default function DashboardContent({ jobs = [] }) {
             <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalJobs}</div>
+            <div className="text-2xl font-bold">{dashboardStats.totalJobs}</div>
             <p className="text-xs text-muted-foreground">
               Clone jobs created
             </p>
@@ -54,9 +81,9 @@ export default function DashboardContent({ jobs = [] }) {
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.successRate}%</div>
+            <div className="text-2xl font-bold">{dashboardStats.successRate}%</div>
             <p className="text-xs text-muted-foreground">
-              Successful operations
+              {loading ? 'Loading...' : `${dashboardStats.successfulOperations}/${dashboardStats.totalOperations} operations`}
             </p>
           </CardContent>
         </Card>
@@ -67,7 +94,9 @@ export default function DashboardContent({ jobs = [] }) {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.avgTime}</div>
+            <div className="text-2xl font-bold">
+              {loading ? '...' : dashboardStats.avgDuration}
+            </div>
             <p className="text-xs text-muted-foreground">
               Per operation
             </p>
@@ -76,13 +105,13 @@ export default function DashboardContent({ jobs = [] }) {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Operations</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{dashboardStats.totalOperations}</div>
             <p className="text-xs text-muted-foreground">
-              Currently running
+              {dashboardStats.failedOperations > 0 && `${dashboardStats.failedOperations} failed`}
             </p>
           </CardContent>
         </Card>
@@ -101,7 +130,7 @@ export default function DashboardContent({ jobs = [] }) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {stats.recentJobs.length === 0 ? (
+            {dashboardStats.recentJobs.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p className="text-lg font-medium mb-2">No jobs yet</p>
@@ -109,7 +138,7 @@ export default function DashboardContent({ jobs = [] }) {
               </div>
             ) : (
               <div className="space-y-4">
-                {stats.recentJobs.map((job) => (
+                {dashboardStats.recentJobs.map((job) => (
                   <div key={job._id} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-primary/10 rounded-md">
@@ -165,10 +194,10 @@ export default function DashboardContent({ jobs = [] }) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Activity className="h-4 w-4 text-orange-600" />
-                  <span className="text-sm font-medium">Memory Usage</span>
+                  <span className="text-sm font-medium">Avg. Response Time</span>
                 </div>
                 <Badge variant="outline" className="text-orange-600 border-orange-600">
-                  Normal
+                  {loading ? 'Loading...' : dashboardStats.avgDuration}
                 </Badge>
               </div>
             </div>

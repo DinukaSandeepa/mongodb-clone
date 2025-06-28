@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
 import dbConnect from '@/lib/mongodb';
 import CloneJob from '@/models/CloneJob';
+import { createCloneHistory } from '@/app/actions/clone-history-actions';
 
 export async function POST(request, { params }) {
   const { jobId } = params;
+  const startTime = new Date();
   
   try {
     // Get job details from our database
@@ -34,6 +36,15 @@ export async function POST(request, { params }) {
       connectTimeoutMS: 15000,
     });
 
+    let historyData = {
+      jobId: job._id,
+      jobName: job.jobName,
+      status: 'running',
+      startTime,
+      collections: 0,
+      documents: 0,
+    };
+
     try {
       console.log('Connecting to source database...');
       await sourceClient.connect();
@@ -61,6 +72,9 @@ export async function POST(request, { params }) {
         destinationDbName = sourceDbName;
         console.log(`Using same database name for destination: ${destinationDbName}`);
       }
+
+      historyData.sourceDatabase = sourceDbName;
+      historyData.destinationDatabase = destinationDbName;
 
       const sourceDb = sourceClient.db(sourceDbName);
       const destinationDb = destinationClient.db(destinationDbName);
@@ -99,6 +113,14 @@ export async function POST(request, { params }) {
               );
 
               if (userDatabases.length > 0) {
+                const endTime = new Date();
+                historyData.status = 'failed';
+                historyData.endTime = endTime;
+                historyData.duration = endTime - startTime;
+                historyData.errorMessage = `Database 'busbuddy' is empty. Found these databases with data: ${userDatabases.map(db => db.name).join(', ')}. Please specify the correct database name in your connection string like: mongodb+srv://user:pass@host/DATABASE_NAME?options`;
+                
+                await createCloneHistory(historyData);
+
                 return NextResponse.json({
                   success: false,
                   message: `Database 'busbuddy' is empty. Found these databases with data: ${userDatabases.map(db => db.name).join(', ')}. Please specify the correct database name in your connection string like: mongodb+srv://user:pass@host/DATABASE_NAME?options`,
@@ -113,6 +135,14 @@ export async function POST(request, { params }) {
               console.log('Could not list databases (might not have admin privileges):', adminError.message);
             }
           }
+
+          const endTime = new Date();
+          historyData.status = 'failed';
+          historyData.endTime = endTime;
+          historyData.duration = endTime - startTime;
+          historyData.errorMessage = `Database '${sourceDbName}' exists but contains no collections. Please verify this is the correct database or specify the database name in your connection string.`;
+          
+          await createCloneHistory(historyData);
 
           return NextResponse.json({
             success: false,
@@ -138,6 +168,14 @@ export async function POST(request, { params }) {
       })));
 
       if (collections.length === 0) {
+        const endTime = new Date();
+        historyData.status = 'failed';
+        historyData.endTime = endTime;
+        historyData.duration = endTime - startTime;
+        historyData.errorMessage = `No collections found in database '${sourceDbName}'. Please verify: 1. The database name is correct 2. You have read permissions on the database 3. The database contains data`;
+        
+        await createCloneHistory(historyData);
+
         return NextResponse.json({
           success: false,
           message: `No collections found in database '${sourceDbName}'. Please verify:
@@ -226,6 +264,24 @@ export async function POST(request, { params }) {
         }
       }
 
+      const endTime = new Date();
+      const duration = endTime - startTime;
+
+      // Update history data with success
+      historyData.status = 'completed';
+      historyData.endTime = endTime;
+      historyData.duration = duration;
+      historyData.collections = processedCollections;
+      historyData.documents = clonedDocuments;
+      historyData.stats = {
+        totalCollections,
+        processedCollections,
+        totalDocuments,
+        clonedDocuments,
+      };
+
+      await createCloneHistory(historyData);
+
       console.log('Clone operation completed successfully');
 
       return NextResponse.json({
@@ -237,7 +293,8 @@ export async function POST(request, { params }) {
           totalDocuments,
           clonedDocuments,
           sourceDatabase: sourceDbName,
-          destinationDatabase: destinationDbName
+          destinationDatabase: destinationDbName,
+          duration: Math.round(duration / 1000) + 's'
         }
       });
 
@@ -251,6 +308,33 @@ export async function POST(request, { params }) {
 
   } catch (error) {
     console.error('Cloning error:', error);
+    
+    const endTime = new Date();
+    const duration = endTime - startTime;
+
+    // Record failed operation in history
+    const failedHistoryData = {
+      jobId: jobId,
+      jobName: 'Unknown Job',
+      status: 'failed',
+      startTime,
+      endTime,
+      duration,
+      collections: 0,
+      documents: 0,
+      errorMessage: error.message,
+    };
+
+    try {
+      const job = await CloneJob.findById(jobId);
+      if (job) {
+        failedHistoryData.jobName = job.jobName;
+      }
+    } catch (jobError) {
+      console.error('Could not fetch job details for history:', jobError);
+    }
+
+    await createCloneHistory(failedHistoryData);
     
     let errorMessage = 'Cloning failed';
     

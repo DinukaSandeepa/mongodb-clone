@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,42 +13,42 @@ import {
   Calendar,
   Filter
 } from 'lucide-react';
+import { getCloneHistory, getCloneStats } from '@/app/actions/clone-history-actions';
 
 export default function HistoryContent() {
-  // Placeholder data - in a real app, this would come from your database
-  const historyItems = [
-    {
-      id: 1,
-      jobName: 'Production to Staging Clone',
-      status: 'completed',
-      startTime: '2024-01-15T10:30:00Z',
-      endTime: '2024-01-15T10:32:15Z',
-      collections: 12,
-      documents: 15420,
-      duration: '2m 15s'
-    },
-    {
-      id: 2,
-      jobName: 'Backup Database Clone',
-      status: 'completed',
-      startTime: '2024-01-14T15:45:00Z',
-      endTime: '2024-01-14T15:47:30Z',
-      collections: 8,
-      documents: 8750,
-      duration: '2m 30s'
-    },
-    {
-      id: 3,
-      jobName: 'Development Sync',
-      status: 'failed',
-      startTime: '2024-01-13T09:15:00Z',
-      endTime: '2024-01-13T09:15:45Z',
-      collections: 0,
-      documents: 0,
-      duration: '45s',
-      error: 'Connection timeout'
+  const [historyItems, setHistoryItems] = useState([]);
+  const [stats, setStats] = useState({
+    totalOperations: 0,
+    successfulOperations: 0,
+    failedOperations: 0,
+    avgDuration: '0s',
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [historyResult, statsResult] = await Promise.all([
+          getCloneHistory(),
+          getCloneStats()
+        ]);
+        
+        if (historyResult.success) {
+          setHistoryItems(historyResult.history || []);
+        }
+        
+        if (statsResult.success) {
+          setStats(statsResult.stats);
+        }
+      } catch (error) {
+        console.error('Error fetching history data:', error);
+      } finally {
+        setLoading(false);
+      }
     }
-  ];
+
+    fetchData();
+  }, []);
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -81,6 +82,42 @@ export default function HistoryContent() {
     });
   };
 
+  const formatDuration = (durationMs) => {
+    if (!durationMs) return 'N/A';
+    
+    const seconds = Math.floor(durationMs / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    
+    if (minutes > 0) {
+      return `${minutes}m ${remainingSeconds}s`;
+    }
+    return `${remainingSeconds}s`;
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight">Operation History</h1>
+          <p className="text-muted-foreground">Loading history data...</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -106,7 +143,7 @@ export default function HistoryContent() {
             <History className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{historyItems.length}</div>
+            <div className="text-2xl font-bold">{stats.totalOperations}</div>
           </CardContent>
         </Card>
 
@@ -117,7 +154,7 @@ export default function HistoryContent() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {historyItems.filter(item => item.status === 'completed').length}
+              {stats.successfulOperations}
             </div>
           </CardContent>
         </Card>
@@ -129,7 +166,7 @@ export default function HistoryContent() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
-              {historyItems.filter(item => item.status === 'failed').length}
+              {stats.failedOperations}
             </div>
           </CardContent>
         </Card>
@@ -140,7 +177,7 @@ export default function HistoryContent() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">2m 10s</div>
+            <div className="text-2xl font-bold">{stats.avgDuration}</div>
           </CardContent>
         </Card>
       </div>
@@ -166,7 +203,7 @@ export default function HistoryContent() {
           ) : (
             <div className="space-y-4">
               {historyItems.map((item) => (
-                <div key={item.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                <div key={item._id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-start gap-3">
                       {getStatusIcon(item.status)}
@@ -179,7 +216,7 @@ export default function HistoryContent() {
                           </div>
                           <div className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            <span>{item.duration}</span>
+                            <span>{formatDuration(item.duration)}</span>
                           </div>
                         </div>
                       </div>
@@ -190,11 +227,11 @@ export default function HistoryContent() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
                       <span className="font-medium text-muted-foreground">Collections:</span>
-                      <div className="font-semibold">{item.collections}</div>
+                      <div className="font-semibold">{item.collections || 0}</div>
                     </div>
                     <div>
                       <span className="font-medium text-muted-foreground">Documents:</span>
-                      <div className="font-semibold">{item.documents.toLocaleString()}</div>
+                      <div className="font-semibold">{(item.documents || 0).toLocaleString()}</div>
                     </div>
                     <div>
                       <span className="font-medium text-muted-foreground">Start Time:</span>
@@ -202,13 +239,32 @@ export default function HistoryContent() {
                     </div>
                     <div>
                       <span className="font-medium text-muted-foreground">End Time:</span>
-                      <div className="font-semibold">{new Date(item.endTime).toLocaleTimeString()}</div>
+                      <div className="font-semibold">
+                        {item.endTime ? new Date(item.endTime).toLocaleTimeString() : 'N/A'}
+                      </div>
                     </div>
                   </div>
                   
-                  {item.error && (
+                  {item.sourceDatabase && item.destinationDatabase && (
+                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium text-muted-foreground">Source DB:</span>
+                        <div className="font-mono text-xs bg-muted px-2 py-1 rounded mt-1">
+                          {item.sourceDatabase}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="font-medium text-muted-foreground">Destination DB:</span>
+                        <div className="font-mono text-xs bg-muted px-2 py-1 rounded mt-1">
+                          {item.destinationDatabase}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {item.errorMessage && (
                     <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-800">
-                      <strong>Error:</strong> {item.error}
+                      <strong>Error:</strong> {item.errorMessage}
                     </div>
                   )}
                 </div>
