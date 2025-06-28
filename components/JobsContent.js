@@ -1,9 +1,19 @@
 'use client';
 
+import { useState } from 'react';
 import JobForm from '@/components/JobForm';
 import JobList from '@/components/JobList';
 
-export default function JobsContent({ jobs }) {
+export default function JobsContent({ jobs, onJobsChange }) {
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleJobsChange = () => {
+    setRefreshKey(prev => prev + 1);
+    if (onJobsChange) {
+      onJobsChange();
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -18,12 +28,12 @@ export default function JobsContent({ jobs }) {
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Left Column - Job Creation Form */}
         <div>
-          <JobForm />
+          <JobForm onJobCreated={handleJobsChange} />
         </div>
 
         {/* Right Column - Job List */}
         <div>
-          <JobList jobs={jobs} />
+          <JobList jobs={jobs} onJobsChange={handleJobsChange} />
         </div>
       </div>
     </div>

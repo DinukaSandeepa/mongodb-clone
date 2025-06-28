@@ -90,6 +90,96 @@ export async function createCloneJob(formData) {
   }
 }
 
+export async function updateCloneJob(jobId, formData) {
+  try {
+    const connection = await dbConnect();
+    
+    const sourceConnectionString = formData.get('sourceConnectionString');
+    const destinationConnectionString = formData.get('destinationConnectionString');
+    
+    // Check if encryption is enabled
+    const shouldEncrypt = true; // This could be retrieved from user settings
+    
+    const updateData = {
+      jobName: formData.get('jobName'),
+      sourceConnectionString: shouldEncrypt ? 
+        encryptConnectionString(sourceConnectionString) : 
+        sourceConnectionString,
+      destinationConnectionString: shouldEncrypt ? 
+        encryptConnectionString(destinationConnectionString) : 
+        destinationConnectionString,
+      encrypted: shouldEncrypt,
+    };
+    
+    if (!connection) {
+      // Mock update for when no database connection
+      console.log('Updated mock clone job:', {
+        _id: jobId,
+        ...updateData,
+        sourceConnectionString: '🔒 [Encrypted]',
+        destinationConnectionString: '🔒 [Encrypted]'
+      });
+      revalidatePath('/');
+      return { 
+        success: true, 
+        message: 'Job updated successfully! (Using mock data - configure MongoDB for persistence)'
+      };
+    }
+
+    const updatedJob = await CloneJob.findByIdAndUpdate(
+      jobId, 
+      updateData, 
+      { new: true, runValidators: true }
+    );
+    
+    if (!updatedJob) {
+      return { success: false, message: 'Job not found' };
+    }
+    
+    revalidatePath('/');
+    
+    return { 
+      success: true, 
+      message: 'Job updated successfully!'
+    };
+  } catch (error) {
+    console.error('Error updating clone job:', error);
+    return { success: false, message: error.message || 'Failed to update job' };
+  }
+}
+
+export async function deleteCloneJob(jobId) {
+  try {
+    const connection = await dbConnect();
+    
+    if (!connection) {
+      // Mock delete for when no database connection
+      console.log('Deleted mock clone job:', jobId);
+      revalidatePath('/');
+      return { 
+        success: true, 
+        message: 'Job deleted successfully! (Using mock data - configure MongoDB for persistence)'
+      };
+    }
+
+    const deletedJob = await CloneJob.findByIdAndDelete(jobId);
+    
+    if (!deletedJob) {
+      return { success: false, message: 'Job not found' };
+    }
+    
+    revalidatePath('/');
+    
+    return { 
+      success: true, 
+      message: 'Job deleted successfully!'
+    };
+  } catch (error) {
+    console.error('Error deleting clone job:', error);
+    return { success: false, message: error.message || 'Failed to delete job' };
+  }
+}
+
 export async function getCloneJobs() {
   try {
     const connection = await dbConnect();

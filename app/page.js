@@ -14,36 +14,40 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    async function fetchJobs() {
-      try {
-        const result = await getCloneJobs();
-        
-        if (result.success) {
-          setJobs(result.jobs || []);
-        } else {
-          console.error('Failed to fetch jobs:', result.error);
-          setError(result.error);
-          setJobs([]); // Set empty array as fallback
-        }
-      } catch (error) {
-        console.error('Error fetching jobs:', error);
-        setError(error.message);
+  const fetchJobs = async () => {
+    try {
+      const result = await getCloneJobs();
+      
+      if (result.success) {
+        setJobs(result.jobs || []);
+      } else {
+        console.error('Failed to fetch jobs:', result.error);
+        setError(result.error);
         setJobs([]); // Set empty array as fallback
-      } finally {
-        setLoading(false);
       }
+    } catch (error) {
+      console.error('Error fetching jobs:', error);
+      setError(error.message);
+      setJobs([]); // Set empty array as fallback
+    } finally {
+      setLoading(false);
     }
+  };
 
+  useEffect(() => {
     fetchJobs();
   }, []);
+
+  const handleJobsChange = () => {
+    fetchJobs();
+  };
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
         return <DashboardContent jobs={jobs} />;
       case 'jobs':
-        return <JobsContent jobs={jobs} />;
+        return <JobsContent jobs={jobs} onJobsChange={handleJobsChange} />;
       case 'history':
         return <HistoryContent />;
       case 'settings':

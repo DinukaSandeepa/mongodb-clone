@@ -5,11 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { createCloneJob } from '@/app/actions/clone-job-actions';
 
-export default function JobForm() {
+export default function JobForm({ onJobCreated }) {
   const [isLoading, setIsLoading] = useState(false);
 
   async function handleSubmit(formData) {
@@ -22,6 +22,9 @@ export default function JobForm() {
         toast.success(result.message);
         // Reset form
         document.getElementById('job-form').reset();
+        if (onJobCreated) {
+          onJobCreated();
+        }
       } else {
         toast.error(result.message);
       }
@@ -66,6 +69,10 @@ export default function JobForm() {
               required
               disabled={isLoading}
             />
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Lock className="h-3 w-3" />
+              Connection string will be encrypted when saved
+            </p>
           </div>
           
           <div className="space-y-2">
@@ -78,6 +85,10 @@ export default function JobForm() {
               required
               disabled={isLoading}
             />
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Lock className="h-3 w-3" />
+              Connection string will be encrypted when saved
+            </p>
           </div>
           
           <Button type="submit" className="w-full" disabled={isLoading}>
