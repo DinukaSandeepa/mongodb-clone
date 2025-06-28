@@ -31,17 +31,30 @@ export default function DashboardContent({ jobs = [] }) {
     message: 'Checking connection...',
     database: null
   });
+  const [apiPerformance, setApiPerformance] = useState({
+    status: 'checking',
+    statusColor: 'blue',
+    responseTime: 'Checking...',
+    message: 'Checking API performance...'
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [statsResult, healthResult] = await Promise.all([
+        const [statsResult, healthResult, performanceResult] = await Promise.all([
           getCloneStats(),
           fetch('/api/health').then(res => res.json()).catch(() => ({ 
             success: false, 
             status: 'error', 
             message: 'Health check failed' 
+          })),
+          fetch('/api/performance').then(res => res.json()).catch(() => ({ 
+            success: false, 
+            status: 'error', 
+            statusColor: 'red',
+            responseTime: 'Error',
+            message: 'Performance check failed' 
           }))
         ]);
         
@@ -54,12 +67,26 @@ export default function DashboardContent({ jobs = [] }) {
           message: healthResult.message || 'Unknown status',
           database: healthResult.database || null
         });
+
+        setApiPerformance({
+          status: performanceResult.success ? performanceResult.status : 'error',
+          statusColor: performanceResult.statusColor || 'red',
+          responseTime: performanceResult.responseTime || 'Error',
+          message: performanceResult.message || 'Performance check failed',
+          memory: performanceResult.memory
+        });
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
         setDbHealth({
           status: 'error',
           message: 'Failed to check database status',
           database: null
+        });
+        setApiPerformance({
+          status: 'error',
+          statusColor: 'red',
+          responseTime: 'Error',
+          message: 'Failed to check API performance'
         });
       } finally {
         setLoading(false);
@@ -117,6 +144,41 @@ export default function DashboardContent({ jobs = [] }) {
       default:
         return <Server className="h-4 w-4 text-gray-600" />;
     }
+  };
+
+  const getApiStatusBadge = () => {
+    const colorClasses = {
+      green: 'text-green-600 border-green-600',
+      blue: 'text-blue-600 border-blue-600',
+      yellow: 'text-yellow-600 border-yellow-600',
+      red: 'text-red-600 border-red-600',
+    };
+
+    const statusLabels = {
+      optimal: 'Optimal',
+      good: 'Good',
+      moderate: 'Moderate',
+      slow: 'Slow',
+      error: 'Error',
+      checking: 'Checking...',
+    };
+
+    return (
+      <Badge variant="outline" className={colorClasses[apiPerformance.statusColor] || 'text-gray-600 border-gray-600'}>
+        {statusLabels[apiPerformance.status] || 'Unknown'}
+      </Badge>
+    );
+  };
+
+  const getApiStatusIcon = () => {
+    const iconClasses = {
+      green: 'text-green-600',
+      blue: 'text-blue-600',
+      yellow: 'text-yellow-600',
+      red: 'text-red-600',
+    };
+
+    return <Zap className={`h-4 w-4 ${iconClasses[apiPerformance.statusColor] || 'text-gray-600'}`} />;
   };
 
   const dashboardStats = {
@@ -275,18 +337,27 @@ export default function DashboardContent({ jobs = [] }) {
               
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-medium">API Performance</span>
+                  {getApiStatusIcon()}
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">API Performance</span>
+                    <span className="text-xs text-muted-foreground">
+                      Response time: {apiPerformance.responseTime}
+                    </span>
+                  </div>
                 </div>
-                <Badge variant="outline" className="text-blue-600 border-blue-600">
-                  Optimal
-                </Badge>
+                {getApiStatusBadge()}
               </div>
+
+              {apiPerformance.memory && (
+                <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
+                  Memory: {apiPerformance.memory.used}MB used / {apiPerformance.memory.total}MB total
+                </div>
+              )}
               
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Activity className="h-4 w-4 text-orange-600" />
-                  <span className="text-sm font-medium">Avg. Response Time</span>
+                  <span className="text-sm font-medium">Avg. Operation Time</span>
                 </div>
                 <Badge variant="outline" className="text-orange-600 border-orange-600">
                   {loading ? 'Loading...' : dashboardStats.avgDuration}
