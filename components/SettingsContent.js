@@ -12,7 +12,6 @@ import {
   Settings, 
   Shield, 
   Bell, 
-  Zap,
   Save,
   RefreshCw,
   Lock,
@@ -120,7 +119,7 @@ export default function SettingsContent() {
             <h4 className="font-semibold text-yellow-800 mb-2">Settings to be reset:</h4>
             <div className="text-sm text-yellow-700 space-y-1">
               <p>• Security settings (encryption, confirmations)</p>
-              <p>• Performance and notification preferences</p>
+              <p>• Notification preferences</p>
               <p>• All custom configurations</p>
             </div>
           </div>
@@ -140,7 +139,7 @@ export default function SettingsContent() {
           <p className="text-muted-foreground">Loading settings...</p>
         </div>
         <div className="grid gap-6 lg:grid-cols-2">
-          {[...Array(3)].map((_, i) => (
+          {[...Array(2)].map((_, i) => (
             <Card key={i}>
               <CardContent className="p-6">
                 <div className="animate-pulse space-y-4">
@@ -281,78 +280,6 @@ export default function SettingsContent() {
                       value={settings.sessionTimeout || 30}
                       onChange={(e) => handleSettingChange('sessionTimeout', parseInt(e.target.value))}
                     />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Performance Settings */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Zap className="h-5 w-5" />
-                    Performance Settings
-                  </CardTitle>
-                  <CardDescription>
-                    Optimize application performance
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="connectionTimeout">Connection Timeout (ms)</Label>
-                    <Input
-                      id="connectionTimeout"
-                      type="number"
-                      value={settings.connectionTimeout || 15000}
-                      onChange={(e) => handleSettingChange('connectionTimeout', parseInt(e.target.value))}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="batchSize">Batch Size</Label>
-                    <Input
-                      id="batchSize"
-                      type="number"
-                      value={settings.batchSize || 1000}
-                      onChange={(e) => handleSettingChange('batchSize', parseInt(e.target.value))}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="maxConcurrent">Max Concurrent Operations</Label>
-                    <Input
-                      id="maxConcurrent"
-                      type="number"
-                      value={settings.maxConcurrent || 3}
-                      onChange={(e) => handleSettingChange('maxConcurrent', parseInt(e.target.value))}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="memoryLimit">Memory Limit (MB)</Label>
-                    <Input
-                      id="memoryLimit"
-                      type="number"
-                      value={settings.memoryLimit || 512}
-                      onChange={(e) => handleSettingChange('memoryLimit', parseInt(e.target.value))}
-                    />
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Switch 
-                      id="enableCaching" 
-                      checked={settings.enableCaching || false}
-                      onCheckedChange={(checked) => handleSettingChange('enableCaching', checked)}
-                    />
-                    <Label htmlFor="enableCaching">Enable result caching</Label>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Switch 
-                      id="compressionEnabled" 
-                      checked={settings.compressionEnabled || false}
-                      onCheckedChange={(checked) => handleSettingChange('compressionEnabled', checked)}
-                    />
-                    <Label htmlFor="compressionEnabled">Enable data compression</Label>
                   </div>
                 </CardContent>
               </Card>
