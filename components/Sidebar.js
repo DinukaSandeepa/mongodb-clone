@@ -14,7 +14,8 @@ import {
   X,
   Activity,
   Shield,
-  Zap
+  Zap,
+  FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -40,6 +41,12 @@ export default function Sidebar({ activeTab, onTabChange, jobCount = 0 }) {
       label: 'History',
       icon: History,
       description: 'View past operations'
+    },
+    {
+      id: 'logs',
+      label: 'Operation Logs',
+      icon: FileText,
+      description: 'System operation logs'
     },
     {
       id: 'settings',

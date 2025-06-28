@@ -6,6 +6,7 @@ import DashboardContent from '@/components/DashboardContent';
 import JobsContent from '@/components/JobsContent';
 import HistoryContent from '@/components/HistoryContent';
 import SettingsContent from '@/components/SettingsContent';
+import LogViewer from '@/components/LogViewer';
 import { getCloneJobs } from '@/app/actions/clone-job-actions';
 
 export default function Home() {
@@ -50,6 +51,8 @@ export default function Home() {
         return <JobsContent jobs={jobs} onJobsChange={handleJobsChange} />;
       case 'history':
         return <HistoryContent />;
+      case 'logs':
+        return <LogViewer />;
       case 'settings':
         return <SettingsContent />;
       default:
