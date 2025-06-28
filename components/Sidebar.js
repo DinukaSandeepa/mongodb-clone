@@ -79,12 +79,12 @@ export default function Sidebar({ activeTab, onTabChange, jobCount = 0 }) {
       
       {/* Sidebar */}
       <div className={cn(
-        "fixed left-0 top-0 z-50 h-screen bg-white border-r border-border transition-all duration-300 ease-in-out flex flex-col",
-        "lg:relative lg:translate-x-0",
+        "fixed left-0 top-0 z-50 h-screen bg-white shadow-lg transition-all duration-300 ease-in-out flex flex-col",
+        "lg:relative lg:translate-x-0 lg:shadow-none lg:border-r lg:border-gray-200",
         isCollapsed ? "-translate-x-full lg:w-16" : "translate-x-0 w-80"
       )}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0 bg-white">
           {!isCollapsed && (
             <div className="flex items-center gap-3">
               <div className="p-2 bg-primary/10 rounded-lg">
@@ -111,7 +111,7 @@ export default function Sidebar({ activeTab, onTabChange, jobCount = 0 }) {
         </div>
 
         {/* Scrollable content area */}
-        <div className="flex-1 w-full">
+        <div className="flex-1 overflow-y-auto bg-white">
           {/* Navigation */}
           <div className="p-4 space-y-2">
             {!isCollapsed && (
@@ -214,7 +214,7 @@ export default function Sidebar({ activeTab, onTabChange, jobCount = 0 }) {
 
         {/* Footer - only show when not collapsed */}
         {!isCollapsed && (
-          <div className="p-4 border-t bg-muted/30 flex-shrink-0">
+          <div className="p-4 border-t border-gray-200 bg-gray-50/50 flex-shrink-0">
             <div className="text-center">
               <p className="text-xs text-muted-foreground">
                 MongoDB Clone Manager v1.0

@@ -87,7 +87,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Sidebar */}
       <Sidebar 
         activeTab={activeTab} 
@@ -96,7 +96,7 @@ export default function Home() {
       />
       
       {/* Main Content */}
-      <div className="flex-1">
+      <div className="lg:pl-80">
         <div className="container mx-auto px-6 py-8 max-w-7xl">
           {renderContent()}
         </div>
