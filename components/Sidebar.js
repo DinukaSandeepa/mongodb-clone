@@ -159,11 +159,9 @@ export default function Sidebar({ activeTab, onTabChange, jobCount = 0 }) {
           </div>
 
           {!isCollapsed && (
-            <>
-              <Separator className="mx-4" />
-              
+            <>              
               {/* Quick Actions */}
-              <div className="p-4 space-y-3">
+              <div className="p-4 space-y-3 border-y">
                 <div className="px-2 py-1">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Quick Actions
@@ -178,8 +176,6 @@ export default function Sidebar({ activeTab, onTabChange, jobCount = 0 }) {
                   <span>New Clone Job</span>
                 </Button>
               </div>
-
-              <Separator className="mx-4" />
 
               {/* Features */}
               <div className="p-4 space-y-3">
