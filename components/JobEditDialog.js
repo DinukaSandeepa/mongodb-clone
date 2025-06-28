@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Loader2, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { updateCloneJob } from '@/app/actions/clone-job-actions';
+import logger, { LogLevel, LogCategory } from '@/lib/logger';
 
 export default function JobEditDialog({ job, open, onOpenChange, onJobUpdated }) {
   const [isLoading, setIsLoading] = useState(false);
@@ -24,6 +25,13 @@ export default function JobEditDialog({ job, open, onOpenChange, onJobUpdated })
         sourceConnectionString: job.sourceConnectionString || '',
         destinationConnectionString: job.destinationConnectionString || '',
       });
+      
+      // Log job edit dialog opened
+      logger.info(LogCategory.USER_ACTION, 'Job edit dialog opened', {
+        jobId: job._id,
+        jobName: job.jobName,
+        timestamp: new Date().toISOString()
+      });
     }
   }, [job]);
 
@@ -32,6 +40,14 @@ export default function JobEditDialog({ job, open, onOpenChange, onJobUpdated })
     if (!job) return;
 
     setIsLoading(true);
+    
+    // Log job update attempt
+    logger.info(LogCategory.JOB_MANAGEMENT, 'User initiated job update', {
+      jobId: job._id,
+      originalJobName: job.jobName,
+      newJobName: formData.jobName,
+      timestamp: new Date().toISOString()
+    });
     
     try {
       const formDataObj = new FormData();
@@ -43,15 +59,42 @@ export default function JobEditDialog({ job, open, onOpenChange, onJobUpdated })
       
       if (result.success) {
         toast.success(result.message);
+        
+        // Log successful job update
+        logger.success(LogCategory.JOB_MANAGEMENT, 'Job updated successfully', {
+          jobId: job._id,
+          originalJobName: job.jobName,
+          newJobName: formData.jobName,
+          timestamp: new Date().toISOString()
+        });
+        
         onOpenChange(false);
         if (onJobUpdated) {
           onJobUpdated();
         }
       } else {
         toast.error(result.message);
+        
+        // Log failed job update
+        logger.error(LogCategory.JOB_MANAGEMENT, 'Failed to update job', {
+          jobId: job._id,
+          jobName: job.jobName,
+          error: result.message,
+          timestamp: new Date().toISOString()
+        });
       }
     } catch (error) {
       toast.error('An unexpected error occurred');
+      
+      // Log unexpected update error
+      logger.error(LogCategory.JOB_MANAGEMENT, 'Unexpected error during job update', {
+        jobId: job._id,
+        jobName: job.jobName,
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      });
+      
       console.error('Update error:', error);
     } finally {
       setIsLoading(false);
@@ -65,8 +108,20 @@ export default function JobEditDialog({ job, open, onOpenChange, onJobUpdated })
     }));
   };
 
+  const handleClose = () => {
+    if (job) {
+      // Log job edit dialog closed
+      logger.debug(LogCategory.USER_ACTION, 'Job edit dialog closed', {
+        jobId: job._id,
+        jobName: job.jobName,
+        timestamp: new Date().toISOString()
+      });
+    }
+    onOpenChange(false);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -129,7 +184,7 @@ export default function JobEditDialog({ job, open, onOpenChange, onJobUpdated })
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={handleClose}
               disabled={isLoading}
             >
               <X className="mr-2 h-4 w-4" />

@@ -43,6 +43,18 @@ function shouldEncryptConnections() {
 function logOperation(level, category, message, details = {}) {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] [${level.toUpperCase()}] [${category.toUpperCase()}] ${message}`, details);
+  
+  // Also send to client-side logger if possible
+  if (typeof window !== 'undefined') {
+    try {
+      const { default: logger, LogLevel, LogCategory } = require('@/lib/logger');
+      const logLevel = LogLevel[level.toUpperCase()] || LogLevel.INFO;
+      const logCat = LogCategory[category.toUpperCase()] || LogCategory.SYSTEM;
+      logger.log(logLevel, logCat, message, details);
+    } catch (error) {
+      // Ignore client-side logging errors on server
+    }
+  }
 }
 
 export async function createCloneJob(formData) {
@@ -106,7 +118,9 @@ export async function createCloneJob(formData) {
         success: true, 
         message: jobData.encrypted ? 
           'Job created successfully with encrypted connection strings! (Using mock data - configure MongoDB for persistence)' :
-          'Job created successfully! (Using mock data - configure MongoDB for persistence)'
+          'Job created successfully! (Using mock data - configure MongoDB for persistence)',
+        jobId: mockJob._id,
+        jobData: mockJob
       };
     }
 
@@ -127,7 +141,12 @@ export async function createCloneJob(formData) {
       success: true, 
       message: jobData.encrypted ? 
         'Job created successfully with encrypted connection strings!' :
-        'Job created successfully!'
+        'Job created successfully!',
+      jobId: cloneJob._id.toString(),
+      jobData: {
+        ...cloneJob.toObject(),
+        _id: cloneJob._id.toString()
+      }
     };
   } catch (error) {
     logOperation('error', 'job_management', 'Failed to create clone job', {

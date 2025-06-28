@@ -26,6 +26,7 @@ import JobDeleteDialog from '@/components/JobDeleteDialog';
 import { useConfirmation } from '@/hooks/useConfirmation';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
 import { getSetting } from '@/lib/settings';
+import logger, { LogLevel, LogCategory } from '@/lib/logger';
 
 export default function JobList({ jobs, onJobsChange }) {
   const [loadingJobs, setLoadingJobs] = useState(new Set());
@@ -40,6 +41,13 @@ export default function JobList({ jobs, onJobsChange }) {
     const performClone = async () => {
       setLoadingJobs(prev => new Set(prev).add(job._id));
       
+      // Log clone operation start
+      logger.info(LogCategory.CLONE_OPERATION, 'Clone operation initiated by user', {
+        jobId: job._id,
+        jobName: job.jobName,
+        timestamp: new Date().toISOString()
+      });
+      
       try {
         const response = await fetch(`/api/clone/${job._id}`, {
           method: 'POST',
@@ -53,12 +61,39 @@ export default function JobList({ jobs, onJobsChange }) {
               `Processed ${result.stats.processedCollections} of ${result.stats.totalCollections} collections` : 
               undefined
           });
+          
+          // Log successful clone operation
+          logger.success(LogCategory.CLONE_OPERATION, 'Clone operation completed successfully', {
+            jobId: job._id,
+            jobName: job.jobName,
+            stats: result.stats,
+            duration: result.stats?.duration,
+            timestamp: new Date().toISOString()
+          });
         } else {
           toast.error(result.message || 'Clone failed');
+          
+          // Log failed clone operation
+          logger.error(LogCategory.CLONE_OPERATION, 'Clone operation failed', {
+            jobId: job._id,
+            jobName: job.jobName,
+            error: result.message,
+            details: result.details,
+            timestamp: new Date().toISOString()
+          });
         }
       } catch (error) {
         console.error('Clone error:', error);
         toast.error('An error occurred during cloning');
+        
+        // Log unexpected clone error
+        logger.error(LogCategory.CLONE_OPERATION, 'Unexpected error during clone operation', {
+          jobId: job._id,
+          jobName: job.jobName,
+          error: error.message,
+          stack: error.stack,
+          timestamp: new Date().toISOString()
+        });
       } finally {
         setLoadingJobs(prev => {
           const newSet = new Set(prev);
@@ -98,6 +133,13 @@ export default function JobList({ jobs, onJobsChange }) {
   };
 
   const handleDuplicateJob = async (job) => {
+    // Log job duplication attempt
+    logger.info(LogCategory.JOB_MANAGEMENT, 'User initiated job duplication', {
+      originalJobId: job._id,
+      originalJobName: job.jobName,
+      timestamp: new Date().toISOString()
+    });
+    
     try {
       // Create a new job with the same data but different name
       const formData = new FormData();
@@ -110,15 +152,42 @@ export default function JobList({ jobs, onJobsChange }) {
       
       if (result.success) {
         toast.success('Job duplicated successfully!');
+        
+        // Log successful duplication
+        logger.success(LogCategory.JOB_MANAGEMENT, 'Job duplicated successfully', {
+          originalJobId: job._id,
+          originalJobName: job.jobName,
+          newJobId: result.jobId,
+          newJobName: `${job.jobName} (Copy)`,
+          timestamp: new Date().toISOString()
+        });
+        
         if (onJobsChange) {
           onJobsChange();
         }
       } else {
         toast.error(result.message);
+        
+        // Log failed duplication
+        logger.error(LogCategory.JOB_MANAGEMENT, 'Failed to duplicate job', {
+          originalJobId: job._id,
+          originalJobName: job.jobName,
+          error: result.message,
+          timestamp: new Date().toISOString()
+        });
       }
     } catch (error) {
       console.error('Duplicate error:', error);
       toast.error('Failed to duplicate job');
+      
+      // Log unexpected duplication error
+      logger.error(LogCategory.JOB_MANAGEMENT, 'Unexpected error during job duplication', {
+        originalJobId: job._id,
+        originalJobName: job.jobName,
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      });
     }
   };
 
@@ -127,8 +196,10 @@ export default function JobList({ jobs, onJobsChange }) {
       const newSet = new Set(prev);
       if (newSet.has(jobId)) {
         newSet.delete(jobId);
+        logger.debug(LogCategory.USER_ACTION, 'Connection strings hidden', { jobId });
       } else {
         newSet.add(jobId);
+        logger.debug(LogCategory.USER_ACTION, 'Connection strings revealed', { jobId });
       }
       return newSet;
     });
