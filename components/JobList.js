@@ -16,47 +16,84 @@ import {
   MoreVertical,
   Edit,
   Trash2,
-  Copy
+  Copy,
+  AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { maskConnectionString, isEncrypted } from '@/lib/encryption';
 import JobEditDialog from '@/components/JobEditDialog';
 import JobDeleteDialog from '@/components/JobDeleteDialog';
+import { useConfirmation } from '@/hooks/useConfirmation';
+import ConfirmationDialog from '@/components/ConfirmationDialog';
+import { getSetting } from '@/lib/settings';
 
 export default function JobList({ jobs, onJobsChange }) {
   const [loadingJobs, setLoadingJobs] = useState(new Set());
   const [showConnectionStrings, setShowConnectionStrings] = useState(new Set());
   const [editingJob, setEditingJob] = useState(null);
   const [deletingJob, setDeletingJob] = useState(null);
+  const { confirmationState, showConfirmation, handleConfirm, handleCancel } = useConfirmation();
 
   const handleStartClone = async (job) => {
-    setLoadingJobs(prev => new Set(prev).add(job._id));
-    
-    try {
-      const response = await fetch(`/api/clone/${job._id}`, {
-        method: 'POST',
-      });
+    const requireConfirmation = getSetting('requireConfirmation');
+
+    const performClone = async () => {
+      setLoadingJobs(prev => new Set(prev).add(job._id));
       
-      const result = await response.json();
-      
-      if (result.success) {
-        toast.success(result.message, {
-          description: result.stats ? 
-            `Processed ${result.stats.processedCollections} of ${result.stats.totalCollections} collections` : 
-            undefined
+      try {
+        const response = await fetch(`/api/clone/${job._id}`, {
+          method: 'POST',
         });
-      } else {
-        toast.error(result.message || 'Clone failed');
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          toast.success(result.message, {
+            description: result.stats ? 
+              `Processed ${result.stats.processedCollections} of ${result.stats.totalCollections} collections` : 
+              undefined
+          });
+        } else {
+          toast.error(result.message || 'Clone failed');
+        }
+      } catch (error) {
+        console.error('Clone error:', error);
+        toast.error('An error occurred during cloning');
+      } finally {
+        setLoadingJobs(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(job._id);
+          return newSet;
+        });
       }
-    } catch (error) {
-      console.error('Clone error:', error);
-      toast.error('An error occurred during cloning');
-    } finally {
-      setLoadingJobs(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(job._id);
-        return newSet;
+    };
+
+    if (requireConfirmation) {
+      showConfirmation({
+        title: 'Start Clone Operation',
+        description: 'This will start cloning data from the source database to the destination database. This operation may overwrite existing data in the destination.',
+        confirmText: 'Start Clone',
+        variant: 'warning',
+        icon: Play,
+        details: (
+          <div>
+            <h4 className="font-semibold text-yellow-800 mb-2">Clone Operation Details:</h4>
+            <p className="text-yellow-700 font-medium mb-1">Job: {job.jobName}</p>
+            <p className="text-sm text-yellow-600">
+              Source: {maskConnectionString(job.sourceConnectionString)}
+            </p>
+            <p className="text-sm text-yellow-600">
+              Destination: {maskConnectionString(job.destinationConnectionString)}
+            </p>
+            <div className="mt-2 p-2 bg-yellow-100 rounded text-xs text-yellow-700">
+              <strong>Warning:</strong> This operation will replace all data in the destination database.
+            </div>
+          </div>
+        ),
+        onConfirm: performClone
       });
+    } else {
+      await performClone();
     }
   };
 
@@ -139,6 +176,11 @@ export default function JobList({ jobs, onJobsChange }) {
           </CardTitle>
           <CardDescription>
             Manage and execute your database cloning jobs.
+            {getSetting('requireConfirmation') && (
+              <span className="block mt-1 text-xs text-yellow-600">
+                ⚠️ Confirmation required for destructive operations
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -283,6 +325,23 @@ export default function JobList({ jobs, onJobsChange }) {
         open={!!deletingJob}
         onOpenChange={(open) => !open && setDeletingJob(null)}
         onJobDeleted={handleJobDeleted}
+      />
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        open={confirmationState.isOpen}
+        onOpenChange={handleCancel}
+        onConfirm={handleConfirm}
+        title={confirmationState.title}
+        description={confirmationState.description}
+        confirmText={confirmationState.confirmText}
+        cancelText={confirmationState.cancelText}
+        variant={confirmationState.variant}
+        icon={confirmationState.icon}
+        details={confirmationState.details}
+        requiresTyping={confirmationState.requiresTyping}
+        confirmationText={confirmationState.confirmationText}
+        isLoading={confirmationState.isLoading}
       />
     </>
   );
