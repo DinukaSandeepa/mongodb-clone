@@ -50,44 +50,10 @@ export async function POST(request, { params }) {
       console.log('Source database name from connection string:', sourceDbName);
       console.log('Destination database name from connection string:', destinationDbName);
 
-      // If no database name specified, try to find the main database
+      // If no database name specified, use "database" as default
       if (!sourceDbName) {
-        console.log('No database name specified in source connection string. Listing available databases...');
-        try {
-          const sourceAdmin = sourceClient.db().admin();
-          const sourceDatabases = await sourceAdmin.listDatabases();
-          console.log('Available databases on source:', sourceDatabases.databases.map(db => ({
-            name: db.name,
-            sizeOnDisk: db.sizeOnDisk,
-            empty: db.empty
-          })));
-
-          // Find the first non-system database with data
-          const userDatabases = sourceDatabases.databases.filter(db => 
-            !['admin', 'local', 'config', 'test'].includes(db.name) && !db.empty
-          );
-
-          if (userDatabases.length > 0) {
-            sourceDbName = userDatabases[0].name;
-            console.log(`Auto-selected source database: ${sourceDbName}`);
-          } else {
-            return NextResponse.json({
-              success: false,
-              message: `No user databases found with data. Available databases: ${sourceDatabases.databases.map(db => db.name).join(', ')}. Please specify a database name in your connection string like: mongodb+srv://user:pass@host/DATABASE_NAME?options`,
-              availableDatabases: sourceDatabases.databases.map(db => ({
-                name: db.name,
-                empty: db.empty,
-                sizeOnDisk: db.sizeOnDisk
-              }))
-            });
-          }
-        } catch (error) {
-          console.log('Could not list databases (might not have admin privileges):', error.message);
-          return NextResponse.json({
-            success: false,
-            message: 'No database name specified in connection string and cannot auto-detect. Please add the database name to your connection string like: mongodb+srv://user:pass@host/DATABASE_NAME?options'
-          });
-        }
+        sourceDbName = 'database';
+        console.log('No database name specified in source connection string. Using default:', sourceDbName);
       }
 
       // If no destination database name, use the same as source
@@ -115,9 +81,42 @@ export async function POST(request, { params }) {
         });
 
         if (sourceStats.collections === 0) {
+          // If the default "database" doesn't exist, try to find available databases
+          if (sourceDbName === 'database') {
+            console.log('Default database "database" is empty. Checking for available databases...');
+            try {
+              const sourceAdmin = sourceClient.db().admin();
+              const sourceDatabases = await sourceAdmin.listDatabases();
+              console.log('Available databases on source:', sourceDatabases.databases.map(db => ({
+                name: db.name,
+                sizeOnDisk: db.sizeOnDisk,
+                empty: db.empty
+              })));
+
+              // Find the first non-system database with data
+              const userDatabases = sourceDatabases.databases.filter(db => 
+                !['admin', 'local', 'config', 'test'].includes(db.name) && !db.empty
+              );
+
+              if (userDatabases.length > 0) {
+                return NextResponse.json({
+                  success: false,
+                  message: `Database 'database' is empty. Found these databases with data: ${userDatabases.map(db => db.name).join(', ')}. Please specify the correct database name in your connection string like: mongodb+srv://user:pass@host/DATABASE_NAME?options`,
+                  availableDatabases: sourceDatabases.databases.map(db => ({
+                    name: db.name,
+                    empty: db.empty,
+                    sizeOnDisk: db.sizeOnDisk
+                  }))
+                });
+              }
+            } catch (adminError) {
+              console.log('Could not list databases (might not have admin privileges):', adminError.message);
+            }
+          }
+
           return NextResponse.json({
             success: false,
-            message: `Database '${sourceDbName}' exists but contains no collections. Please verify this is the correct database.`,
+            message: `Database '${sourceDbName}' exists but contains no collections. Please verify this is the correct database or specify the database name in your connection string.`,
             debug: {
               sourceDbName,
               destinationDbName,
