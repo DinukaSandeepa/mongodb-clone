@@ -4,11 +4,13 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Play, Loader2, Database, Calendar } from 'lucide-react';
+import { Play, Loader2, Database, Calendar, Lock, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
+import { maskConnectionString, isEncrypted } from '@/lib/encryption';
 
 export default function JobList({ jobs }) {
   const [loadingJobs, setLoadingJobs] = useState(new Set());
+  const [showConnectionStrings, setShowConnectionStrings] = useState(new Set());
 
   const handleStartClone = async (job) => {
     setLoadingJobs(prev => new Set(prev).add(job._id));
@@ -41,6 +43,18 @@ export default function JobList({ jobs }) {
     }
   };
 
+  const toggleConnectionStringVisibility = (jobId) => {
+    setShowConnectionStrings(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(jobId)) {
+        newSet.delete(jobId);
+      } else {
+        newSet.add(jobId);
+      }
+      return newSet;
+    });
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -49,6 +63,21 @@ export default function JobList({ jobs }) {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const getConnectionStringDisplay = (connectionString, jobId) => {
+    const isVisible = showConnectionStrings.has(jobId);
+    const encrypted = isEncrypted(connectionString);
+    
+    if (encrypted && !isVisible) {
+      return '🔒 [Encrypted Connection String]';
+    }
+    
+    if (!isVisible) {
+      return maskConnectionString(connectionString);
+    }
+    
+    return connectionString;
   };
 
   return (
@@ -73,6 +102,8 @@ export default function JobList({ jobs }) {
           <div className="space-y-4">
             {jobs.map((job) => {
               const isLoading = loadingJobs.has(job._id);
+              const isVisible = showConnectionStrings.has(job._id);
+              const hasEncryptedStrings = isEncrypted(job.sourceConnectionString) || isEncrypted(job.destinationConnectionString);
               
               return (
                 <div
@@ -81,38 +112,65 @@ export default function JobList({ jobs }) {
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-base mb-1">{job.jobName}</h3>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-base">{job.jobName}</h3>
+                        {hasEncryptedStrings && (
+                          <Badge variant="secondary" className="text-xs gap-1">
+                            <Lock className="h-3 w-3" />
+                            Encrypted
+                          </Badge>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Calendar className="h-3 w-3" />
                         <span>Created {formatDate(job.createdAt)}</span>
                       </div>
                     </div>
-                    <Badge variant="secondary" className="ml-2">
-                      Ready
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="ml-2">
+                        Ready
+                      </Badge>
+                    </div>
                   </div>
                   
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium">Source:</span>
-                        <span className="font-mono text-xs">
-                          {job.sourceConnectionString.substring(0, 30)}...
-                        </span>
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-muted-foreground flex-1">
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">Source:</span>
+                          <span className="font-mono text-xs break-all">
+                            {getConnectionStringDisplay(job.sourceConnectionString, job._id)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className="font-medium">Destination:</span>
+                          <span className="font-mono text-xs break-all">
+                            {getConnectionStringDisplay(job.destinationConnectionString, job._id)}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 mt-1">
-                        <span className="font-medium">Destination:</span>
-                        <span className="font-mono text-xs">
-                          {job.destinationConnectionString.substring(0, 30)}...
-                        </span>
-                      </div>
+                      
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleConnectionStringVisibility(job._id)}
+                        className="ml-2 h-8 w-8 p-0"
+                        title={isVisible ? 'Hide connection strings' : 'Show connection strings'}
+                      >
+                        {isVisible ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
                     </div>
-                    
+                  </div>
+                  
+                  <div className="flex items-center justify-end">
                     <Button
                       onClick={() => handleStartClone(job)}
                       disabled={isLoading}
                       size="sm"
-                      className="ml-4"
                     >
                       {isLoading ? (
                         <>

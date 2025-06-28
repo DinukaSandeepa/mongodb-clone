@@ -3,6 +3,7 @@
 import dbConnect from '@/lib/mongodb';
 import CloneJob from '@/models/CloneJob';
 import { revalidatePath } from 'next/cache';
+import { encryptConnectionString, decryptConnectionString } from '@/lib/encryption';
 
 // Mock data for when MongoDB is not available
 const mockJobs = [
@@ -33,10 +34,22 @@ export async function createCloneJob(formData) {
   try {
     const connection = await dbConnect();
     
+    const sourceConnectionString = formData.get('sourceConnectionString');
+    const destinationConnectionString = formData.get('destinationConnectionString');
+    
+    // Check if encryption is enabled (this would come from user settings)
+    // For now, we'll encrypt by default - in a real app, this would check user preferences
+    const shouldEncrypt = true; // This could be retrieved from user settings
+    
     const jobData = {
       jobName: formData.get('jobName'),
-      sourceConnectionString: formData.get('sourceConnectionString'),
-      destinationConnectionString: formData.get('destinationConnectionString'),
+      sourceConnectionString: shouldEncrypt ? 
+        encryptConnectionString(sourceConnectionString) : 
+        sourceConnectionString,
+      destinationConnectionString: shouldEncrypt ? 
+        encryptConnectionString(destinationConnectionString) : 
+        destinationConnectionString,
+      encrypted: shouldEncrypt,
     };
     
     if (!connection) {
@@ -46,9 +59,18 @@ export async function createCloneJob(formData) {
         ...jobData,
         createdAt: new Date(),
       };
-      console.log('Created mock clone job:', mockJob);
+      console.log('Created mock clone job:', {
+        ...mockJob,
+        sourceConnectionString: '🔒 [Encrypted]',
+        destinationConnectionString: '🔒 [Encrypted]'
+      });
       revalidatePath('/');
-      return { success: true, message: 'Job created successfully! (Using mock data - configure MongoDB for persistence)' };
+      return { 
+        success: true, 
+        message: shouldEncrypt ? 
+          'Job created successfully with encrypted connection strings! (Using mock data - configure MongoDB for persistence)' :
+          'Job created successfully! (Using mock data - configure MongoDB for persistence)'
+      };
     }
 
     const cloneJob = new CloneJob(jobData);
@@ -56,7 +78,12 @@ export async function createCloneJob(formData) {
     
     revalidatePath('/');
     
-    return { success: true, message: 'Job created successfully!' };
+    return { 
+      success: true, 
+      message: shouldEncrypt ? 
+        'Job created successfully with encrypted connection strings!' :
+        'Job created successfully!'
+    };
   } catch (error) {
     console.error('Error creating clone job:', error);
     return { success: false, message: error.message || 'Failed to create job' };
@@ -79,10 +106,17 @@ export async function getCloneJobs() {
 
     const jobs = await CloneJob.find({}).sort({ createdAt: -1 }).lean();
     
-    // Convert MongoDB ObjectId to string for serialization
+    // Convert MongoDB ObjectId to string for serialization and decrypt if needed
     const serializedJobs = jobs.map(job => ({
       ...job,
       _id: job._id.toString(),
+      // Decrypt connection strings for display (they'll be masked in the UI)
+      sourceConnectionString: job.encrypted ? 
+        decryptConnectionString(job.sourceConnectionString) : 
+        job.sourceConnectionString,
+      destinationConnectionString: job.encrypted ? 
+        decryptConnectionString(job.destinationConnectionString) : 
+        job.destinationConnectionString,
     }));
     
     return { success: true, jobs: serializedJobs };
@@ -94,5 +128,43 @@ export async function getCloneJobs() {
       _id: job._id.toString(),
     }));
     return { success: true, jobs };
+  }
+}
+
+export async function getCloneJobById(jobId) {
+  try {
+    const connection = await dbConnect();
+    
+    if (!connection) {
+      // Return mock data when no database connection
+      const mockJob = mockJobs.find(job => job._id === jobId);
+      if (!mockJob) {
+        return { success: false, message: 'Job not found' };
+      }
+      return { success: true, job: mockJob };
+    }
+
+    const job = await CloneJob.findById(jobId).lean();
+    
+    if (!job) {
+      return { success: false, message: 'Job not found' };
+    }
+    
+    // Decrypt connection strings for use
+    const decryptedJob = {
+      ...job,
+      _id: job._id.toString(),
+      sourceConnectionString: job.encrypted ? 
+        decryptConnectionString(job.sourceConnectionString) : 
+        job.sourceConnectionString,
+      destinationConnectionString: job.encrypted ? 
+        decryptConnectionString(job.destinationConnectionString) : 
+        job.destinationConnectionString,
+    };
+    
+    return { success: true, job: decryptedJob };
+  } catch (error) {
+    console.error('Error fetching clone job:', error);
+    return { success: false, message: error.message || 'Failed to fetch job' };
   }
 }

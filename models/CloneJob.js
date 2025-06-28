@@ -16,6 +16,10 @@ const CloneJobSchema = new mongoose.Schema({
     required: [true, 'Destination connection string is required'],
     trim: true,
   },
+  encrypted: {
+    type: Boolean,
+    default: false,
+  },
 }, {
   timestamps: true,
 });
