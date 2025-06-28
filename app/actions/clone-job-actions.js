@@ -35,8 +35,7 @@ const mockJobs = [
 
 // Helper function to check if encryption is enabled
 function shouldEncryptConnections() {
-  // In a real app, this would check user settings from database or environment
-  // For now, we'll always encrypt by default
+  // Always encrypt by default for security
   return true;
 }
 
@@ -50,15 +49,27 @@ export async function createCloneJob(formData) {
     // Check if encryption should be enabled
     const encryptConnections = shouldEncryptConnections();
     
+    let processedSourceString = sourceConnectionString;
+    let processedDestinationString = destinationConnectionString;
+    
+    // Only encrypt if encryption is enabled and strings are not already encrypted
+    if (encryptConnections) {
+      try {
+        processedSourceString = encryptConnectionString(sourceConnectionString);
+        processedDestinationString = encryptConnectionString(destinationConnectionString);
+        console.log('Encryption successful');
+      } catch (encryptError) {
+        console.error('Encryption failed, storing as plain text:', encryptError);
+        // If encryption fails, store as plain text but mark as not encrypted
+        encryptConnections = false;
+      }
+    }
+    
     const jobData = {
       jobName: formData.get('jobName'),
-      sourceConnectionString: encryptConnections ? 
-        encryptConnectionString(sourceConnectionString) : 
-        sourceConnectionString,
-      destinationConnectionString: encryptConnections ? 
-        encryptConnectionString(destinationConnectionString) : 
-        destinationConnectionString,
-      encrypted: encryptConnections,
+      sourceConnectionString: processedSourceString,
+      destinationConnectionString: processedDestinationString,
+      encrypted: encryptConnections && isEncrypted(processedSourceString),
     };
     
     if (!connection) {
@@ -68,11 +79,11 @@ export async function createCloneJob(formData) {
         ...jobData,
         createdAt: new Date(),
       };
-      console.log('Created mock clone job with encryption:', encryptConnections);
+      console.log('Created mock clone job with encryption:', jobData.encrypted);
       revalidatePath('/');
       return { 
         success: true, 
-        message: encryptConnections ? 
+        message: jobData.encrypted ? 
           'Job created successfully with encrypted connection strings! (Using mock data - configure MongoDB for persistence)' :
           'Job created successfully! (Using mock data - configure MongoDB for persistence)'
       };
@@ -81,7 +92,7 @@ export async function createCloneJob(formData) {
     const cloneJob = new CloneJob(jobData);
     await cloneJob.save();
     
-    console.log('Job saved to database with encryption:', encryptConnections);
+    console.log('Job saved to database with encryption:', jobData.encrypted);
     console.log('Source encrypted:', isEncrypted(jobData.sourceConnectionString));
     console.log('Destination encrypted:', isEncrypted(jobData.destinationConnectionString));
     
@@ -89,7 +100,7 @@ export async function createCloneJob(formData) {
     
     return { 
       success: true, 
-      message: encryptConnections ? 
+      message: jobData.encrypted ? 
         'Job created successfully with encrypted connection strings!' :
         'Job created successfully!'
     };
@@ -109,20 +120,32 @@ export async function updateCloneJob(jobId, formData) {
     // Check if encryption should be enabled
     const encryptConnections = shouldEncryptConnections();
     
+    let processedSourceString = sourceConnectionString;
+    let processedDestinationString = destinationConnectionString;
+    
+    // Only encrypt if encryption is enabled and strings are not already encrypted
+    if (encryptConnections) {
+      try {
+        processedSourceString = encryptConnectionString(sourceConnectionString);
+        processedDestinationString = encryptConnectionString(destinationConnectionString);
+        console.log('Update encryption successful');
+      } catch (encryptError) {
+        console.error('Update encryption failed, storing as plain text:', encryptError);
+        // If encryption fails, store as plain text but mark as not encrypted
+        encryptConnections = false;
+      }
+    }
+    
     const updateData = {
       jobName: formData.get('jobName'),
-      sourceConnectionString: encryptConnections ? 
-        encryptConnectionString(sourceConnectionString) : 
-        sourceConnectionString,
-      destinationConnectionString: encryptConnections ? 
-        encryptConnectionString(destinationConnectionString) : 
-        destinationConnectionString,
-      encrypted: encryptConnections,
+      sourceConnectionString: processedSourceString,
+      destinationConnectionString: processedDestinationString,
+      encrypted: encryptConnections && isEncrypted(processedSourceString),
     };
     
     if (!connection) {
       // Mock update for when no database connection
-      console.log('Updated mock clone job with encryption:', encryptConnections);
+      console.log('Updated mock clone job with encryption:', updateData.encrypted);
       revalidatePath('/');
       return { 
         success: true, 
@@ -140,7 +163,7 @@ export async function updateCloneJob(jobId, formData) {
       return { success: false, message: 'Job not found' };
     }
     
-    console.log('Job updated in database with encryption:', encryptConnections);
+    console.log('Job updated in database with encryption:', updateData.encrypted);
     console.log('Source encrypted:', isEncrypted(updateData.sourceConnectionString));
     console.log('Destination encrypted:', isEncrypted(updateData.destinationConnectionString));
     
@@ -208,16 +231,31 @@ export async function getCloneJobs() {
     const serializedJobs = jobs.map(job => {
       console.log(`Job ${job.jobName} - Encrypted: ${job.encrypted}, Source starts with encrypted: ${job.sourceConnectionString?.startsWith('encrypted:')}`);
       
+      let decryptedSourceString = job.sourceConnectionString;
+      let decryptedDestinationString = job.destinationConnectionString;
+      
+      // Decrypt connection strings for display (they'll be masked in the UI)
+      if (job.encrypted && isEncrypted(job.sourceConnectionString)) {
+        try {
+          decryptedSourceString = decryptConnectionString(job.sourceConnectionString);
+        } catch (error) {
+          console.error('Failed to decrypt source connection string:', error);
+        }
+      }
+      
+      if (job.encrypted && isEncrypted(job.destinationConnectionString)) {
+        try {
+          decryptedDestinationString = decryptConnectionString(job.destinationConnectionString);
+        } catch (error) {
+          console.error('Failed to decrypt destination connection string:', error);
+        }
+      }
+      
       return {
         ...job,
         _id: job._id.toString(),
-        // Decrypt connection strings for display (they'll be masked in the UI)
-        sourceConnectionString: job.encrypted && isEncrypted(job.sourceConnectionString) ? 
-          decryptConnectionString(job.sourceConnectionString) : 
-          job.sourceConnectionString,
-        destinationConnectionString: job.encrypted && isEncrypted(job.destinationConnectionString) ? 
-          decryptConnectionString(job.destinationConnectionString) : 
-          job.destinationConnectionString,
+        sourceConnectionString: decryptedSourceString,
+        destinationConnectionString: decryptedDestinationString,
       };
     });
     
@@ -252,16 +290,31 @@ export async function getCloneJobById(jobId) {
       return { success: false, message: 'Job not found' };
     }
     
+    let decryptedSourceString = job.sourceConnectionString;
+    let decryptedDestinationString = job.destinationConnectionString;
+    
     // Decrypt connection strings for use
+    if (job.encrypted && isEncrypted(job.sourceConnectionString)) {
+      try {
+        decryptedSourceString = decryptConnectionString(job.sourceConnectionString);
+      } catch (error) {
+        console.error('Failed to decrypt source connection string:', error);
+      }
+    }
+    
+    if (job.encrypted && isEncrypted(job.destinationConnectionString)) {
+      try {
+        decryptedDestinationString = decryptConnectionString(job.destinationConnectionString);
+      } catch (error) {
+        console.error('Failed to decrypt destination connection string:', error);
+      }
+    }
+    
     const decryptedJob = {
       ...job,
       _id: job._id.toString(),
-      sourceConnectionString: job.encrypted && isEncrypted(job.sourceConnectionString) ? 
-        decryptConnectionString(job.sourceConnectionString) : 
-        job.sourceConnectionString,
-      destinationConnectionString: job.encrypted && isEncrypted(job.destinationConnectionString) ? 
-        decryptConnectionString(job.destinationConnectionString) : 
-        job.destinationConnectionString,
+      sourceConnectionString: decryptedSourceString,
+      destinationConnectionString: decryptedDestinationString,
     };
     
     return { success: true, job: decryptedJob };
