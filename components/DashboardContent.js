@@ -13,7 +13,8 @@ import {
   AlertCircle,
   TrendingUp,
   Server,
-  Zap
+  Zap,
+  XCircle
 } from 'lucide-react';
 import { getCloneStats } from '@/app/actions/clone-history-actions';
 
@@ -25,24 +26,98 @@ export default function DashboardContent({ jobs = [] }) {
     successRate: 0,
     avgDuration: '0s',
   });
+  const [dbHealth, setDbHealth] = useState({
+    status: 'checking',
+    message: 'Checking connection...',
+    database: null
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchStats() {
+    async function fetchData() {
       try {
-        const result = await getCloneStats();
-        if (result.success) {
-          setStats(result.stats);
+        const [statsResult, healthResult] = await Promise.all([
+          getCloneStats(),
+          fetch('/api/health').then(res => res.json()).catch(() => ({ 
+            success: false, 
+            status: 'error', 
+            message: 'Health check failed' 
+          }))
+        ]);
+        
+        if (statsResult.success) {
+          setStats(statsResult.stats);
         }
+        
+        setDbHealth({
+          status: healthResult.success ? healthResult.status : 'error',
+          message: healthResult.message || 'Unknown status',
+          database: healthResult.database || null
+        });
       } catch (error) {
-        console.error('Error fetching stats:', error);
+        console.error('Error fetching dashboard data:', error);
+        setDbHealth({
+          status: 'error',
+          message: 'Failed to check database status',
+          database: null
+        });
       } finally {
         setLoading(false);
       }
     }
 
-    fetchStats();
+    fetchData();
   }, []);
+
+  const getDbStatusBadge = () => {
+    switch (dbHealth.status) {
+      case 'connected':
+        return (
+          <Badge variant="outline" className="text-green-600 border-green-600">
+            Connected
+          </Badge>
+        );
+      case 'disconnected':
+        return (
+          <Badge variant="outline" className="text-yellow-600 border-yellow-600">
+            Mock Mode
+          </Badge>
+        );
+      case 'error':
+        return (
+          <Badge variant="outline" className="text-red-600 border-red-600">
+            Error
+          </Badge>
+        );
+      case 'checking':
+        return (
+          <Badge variant="outline" className="text-blue-600 border-blue-600">
+            Checking...
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="outline" className="text-gray-600 border-gray-600">
+            Unknown
+          </Badge>
+        );
+    }
+  };
+
+  const getDbStatusIcon = () => {
+    switch (dbHealth.status) {
+      case 'connected':
+        return <Server className="h-4 w-4 text-green-600" />;
+      case 'disconnected':
+        return <AlertCircle className="h-4 w-4 text-yellow-600" />;
+      case 'error':
+        return <XCircle className="h-4 w-4 text-red-600" />;
+      case 'checking':
+        return <Clock className="h-4 w-4 text-blue-600" />;
+      default:
+        return <Server className="h-4 w-4 text-gray-600" />;
+    }
+  };
 
   const dashboardStats = {
     totalJobs: jobs.length,
@@ -166,20 +241,37 @@ export default function DashboardContent({ jobs = [] }) {
               System Status
             </CardTitle>
             <CardDescription>
-              Current system performance
+              Current system performance and connectivity
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Server className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-medium">Database Connection</span>
+                  {getDbStatusIcon()}
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">Database Connection</span>
+                    {dbHealth.database && (
+                      <span className="text-xs text-muted-foreground">
+                        Connected to: {dbHealth.database}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <Badge variant="outline" className="text-green-600 border-green-600">
-                  Healthy
-                </Badge>
+                {getDbStatusBadge()}
               </div>
+              
+              {dbHealth.status === 'error' && (
+                <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200">
+                  {dbHealth.message}
+                </div>
+              )}
+              
+              {dbHealth.status === 'disconnected' && (
+                <div className="text-xs text-yellow-600 bg-yellow-50 p-2 rounded border border-yellow-200">
+                  Using mock data. Configure MONGODB_URI to connect to a real database.
+                </div>
+              )}
               
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
