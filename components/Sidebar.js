@@ -111,7 +111,7 @@ export default function Sidebar({ activeTab, onTabChange, jobCount = 0 }) {
         </div>
 
         {/* Scrollable content area */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 w-full">
           {/* Navigation */}
           <div className="p-4 space-y-2">
             {!isCollapsed && (
