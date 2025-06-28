@@ -39,12 +39,26 @@ function shouldEncryptConnections() {
   return true;
 }
 
+// Helper function to log operations (server-side logging)
+function logOperation(level, category, message, details = {}) {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] [${level.toUpperCase()}] [${category.toUpperCase()}] ${message}`, details);
+}
+
 export async function createCloneJob(formData) {
   try {
     const connection = await dbConnect();
     
     const sourceConnectionString = formData.get('sourceConnectionString');
     const destinationConnectionString = formData.get('destinationConnectionString');
+    const jobName = formData.get('jobName');
+    
+    // Log job creation attempt
+    logOperation('info', 'job_management', 'Clone job creation started', {
+      jobName,
+      hasSource: !!sourceConnectionString,
+      hasDestination: !!destinationConnectionString
+    });
     
     // Check if encryption should be enabled
     let encryptConnections = shouldEncryptConnections();
@@ -57,16 +71,19 @@ export async function createCloneJob(formData) {
       try {
         processedSourceString = encryptConnectionString(sourceConnectionString);
         processedDestinationString = encryptConnectionString(destinationConnectionString);
-        console.log('Encryption successful');
+        logOperation('info', 'job_management', 'Connection strings encrypted successfully', { jobName });
       } catch (encryptError) {
-        console.error('Encryption failed, storing as plain text:', encryptError);
+        logOperation('error', 'job_management', 'Encryption failed, storing as plain text', {
+          jobName,
+          error: encryptError.message
+        });
         // If encryption fails, store as plain text but mark as not encrypted
         encryptConnections = false;
       }
     }
     
     const jobData = {
-      jobName: formData.get('jobName'),
+      jobName,
       sourceConnectionString: processedSourceString,
       destinationConnectionString: processedDestinationString,
       encrypted: encryptConnections && isEncrypted(processedSourceString),
@@ -79,7 +96,11 @@ export async function createCloneJob(formData) {
         ...jobData,
         createdAt: new Date(),
       };
-      console.log('Created mock clone job with encryption:', jobData.encrypted);
+      logOperation('warning', 'job_management', 'Created mock clone job (no database connection)', {
+        jobId: mockJob._id,
+        jobName,
+        encrypted: jobData.encrypted
+      });
       revalidatePath('/');
       return { 
         success: true, 
@@ -92,9 +113,13 @@ export async function createCloneJob(formData) {
     const cloneJob = new CloneJob(jobData);
     await cloneJob.save();
     
-    console.log('Job saved to database with encryption:', jobData.encrypted);
-    console.log('Source encrypted:', isEncrypted(jobData.sourceConnectionString));
-    console.log('Destination encrypted:', isEncrypted(jobData.destinationConnectionString));
+    logOperation('success', 'job_management', 'Clone job created successfully', {
+      jobId: cloneJob._id.toString(),
+      jobName,
+      encrypted: jobData.encrypted,
+      sourceEncrypted: isEncrypted(jobData.sourceConnectionString),
+      destinationEncrypted: isEncrypted(jobData.destinationConnectionString)
+    });
     
     revalidatePath('/');
     
@@ -105,6 +130,10 @@ export async function createCloneJob(formData) {
         'Job created successfully!'
     };
   } catch (error) {
+    logOperation('error', 'job_management', 'Failed to create clone job', {
+      error: error.message,
+      stack: error.stack
+    });
     console.error('Error creating clone job:', error);
     return { success: false, message: error.message || 'Failed to create job' };
   }
@@ -116,6 +145,12 @@ export async function updateCloneJob(jobId, formData) {
     
     const sourceConnectionString = formData.get('sourceConnectionString');
     const destinationConnectionString = formData.get('destinationConnectionString');
+    const jobName = formData.get('jobName');
+    
+    logOperation('info', 'job_management', 'Clone job update started', {
+      jobId,
+      jobName
+    });
     
     // Check if encryption should be enabled
     let encryptConnections = shouldEncryptConnections();
@@ -128,16 +163,20 @@ export async function updateCloneJob(jobId, formData) {
       try {
         processedSourceString = encryptConnectionString(sourceConnectionString);
         processedDestinationString = encryptConnectionString(destinationConnectionString);
-        console.log('Update encryption successful');
+        logOperation('info', 'job_management', 'Connection strings encrypted for update', { jobId, jobName });
       } catch (encryptError) {
-        console.error('Update encryption failed, storing as plain text:', encryptError);
+        logOperation('error', 'job_management', 'Update encryption failed, storing as plain text', {
+          jobId,
+          jobName,
+          error: encryptError.message
+        });
         // If encryption fails, store as plain text but mark as not encrypted
         encryptConnections = false;
       }
     }
     
     const updateData = {
-      jobName: formData.get('jobName'),
+      jobName,
       sourceConnectionString: processedSourceString,
       destinationConnectionString: processedDestinationString,
       encrypted: encryptConnections && isEncrypted(processedSourceString),
@@ -145,7 +184,11 @@ export async function updateCloneJob(jobId, formData) {
     
     if (!connection) {
       // Mock update for when no database connection
-      console.log('Updated mock clone job with encryption:', updateData.encrypted);
+      logOperation('warning', 'job_management', 'Updated mock clone job (no database connection)', {
+        jobId,
+        jobName,
+        encrypted: updateData.encrypted
+      });
       revalidatePath('/');
       return { 
         success: true, 
@@ -160,12 +203,17 @@ export async function updateCloneJob(jobId, formData) {
     );
     
     if (!updatedJob) {
+      logOperation('error', 'job_management', 'Job not found for update', { jobId });
       return { success: false, message: 'Job not found' };
     }
     
-    console.log('Job updated in database with encryption:', updateData.encrypted);
-    console.log('Source encrypted:', isEncrypted(updateData.sourceConnectionString));
-    console.log('Destination encrypted:', isEncrypted(updateData.destinationConnectionString));
+    logOperation('success', 'job_management', 'Clone job updated successfully', {
+      jobId,
+      jobName,
+      encrypted: updateData.encrypted,
+      sourceEncrypted: isEncrypted(updateData.sourceConnectionString),
+      destinationEncrypted: isEncrypted(updateData.destinationConnectionString)
+    });
     
     revalidatePath('/');
     
@@ -174,6 +222,11 @@ export async function updateCloneJob(jobId, formData) {
       message: 'Job updated successfully!'
     };
   } catch (error) {
+    logOperation('error', 'job_management', 'Failed to update clone job', {
+      jobId,
+      error: error.message,
+      stack: error.stack
+    });
     console.error('Error updating clone job:', error);
     return { success: false, message: error.message || 'Failed to update job' };
   }
@@ -183,9 +236,11 @@ export async function deleteCloneJob(jobId) {
   try {
     const connection = await dbConnect();
     
+    logOperation('info', 'job_management', 'Clone job deletion started', { jobId });
+    
     if (!connection) {
       // Mock delete for when no database connection
-      console.log('Deleted mock clone job:', jobId);
+      logOperation('warning', 'job_management', 'Deleted mock clone job (no database connection)', { jobId });
       revalidatePath('/');
       return { 
         success: true, 
@@ -196,8 +251,15 @@ export async function deleteCloneJob(jobId) {
     const deletedJob = await CloneJob.findByIdAndDelete(jobId);
     
     if (!deletedJob) {
+      logOperation('error', 'job_management', 'Job not found for deletion', { jobId });
       return { success: false, message: 'Job not found' };
     }
+    
+    logOperation('success', 'job_management', 'Clone job deleted successfully', {
+      jobId,
+      jobName: deletedJob.jobName,
+      wasEncrypted: deletedJob.encrypted
+    });
     
     revalidatePath('/');
     
@@ -206,6 +268,11 @@ export async function deleteCloneJob(jobId) {
       message: 'Job deleted successfully!'
     };
   } catch (error) {
+    logOperation('error', 'job_management', 'Failed to delete clone job', {
+      jobId,
+      error: error.message,
+      stack: error.stack
+    });
     console.error('Error deleting clone job:', error);
     return { success: false, message: error.message || 'Failed to delete job' };
   }
@@ -217,7 +284,7 @@ export async function getCloneJobs() {
     
     if (!connection) {
       // Return mock data when no database connection
-      console.log('Using mock clone jobs data');
+      logOperation('info', 'job_management', 'Using mock clone jobs data (no database connection)');
       const jobs = mockJobs.map(job => ({
         ...job,
         _id: job._id.toString(),
@@ -227,10 +294,12 @@ export async function getCloneJobs() {
 
     const jobs = await CloneJob.find({}).sort({ createdAt: -1 }).lean();
     
+    logOperation('info', 'job_management', 'Retrieved clone jobs from database', {
+      jobCount: jobs.length
+    });
+    
     // Convert MongoDB ObjectId to string for serialization and decrypt if needed
     const serializedJobs = jobs.map(job => {
-      console.log(`Job ${job.jobName} - Encrypted: ${job.encrypted}, Source starts with encrypted: ${job.sourceConnectionString?.startsWith('encrypted:')}`);
-      
       let decryptedSourceString = job.sourceConnectionString;
       let decryptedDestinationString = job.destinationConnectionString;
       
@@ -239,7 +308,10 @@ export async function getCloneJobs() {
         try {
           decryptedSourceString = decryptConnectionString(job.sourceConnectionString);
         } catch (error) {
-          console.error('Failed to decrypt source connection string:', error);
+          logOperation('error', 'job_management', 'Failed to decrypt source connection string', {
+            jobId: job._id.toString(),
+            error: error.message
+          });
         }
       }
       
@@ -247,7 +319,10 @@ export async function getCloneJobs() {
         try {
           decryptedDestinationString = decryptConnectionString(job.destinationConnectionString);
         } catch (error) {
-          console.error('Failed to decrypt destination connection string:', error);
+          logOperation('error', 'job_management', 'Failed to decrypt destination connection string', {
+            jobId: job._id.toString(),
+            error: error.message
+          });
         }
       }
       
@@ -261,6 +336,10 @@ export async function getCloneJobs() {
     
     return { success: true, jobs: serializedJobs };
   } catch (error) {
+    logOperation('error', 'job_management', 'Failed to fetch clone jobs', {
+      error: error.message,
+      stack: error.stack
+    });
     console.error('Error fetching clone jobs:', error);
     // Return mock data as fallback with success format
     const jobs = mockJobs.map(job => ({
@@ -275,18 +354,23 @@ export async function getCloneJobById(jobId) {
   try {
     const connection = await dbConnect();
     
+    logOperation('info', 'job_management', 'Retrieving clone job by ID', { jobId });
+    
     if (!connection) {
       // Return mock data when no database connection
       const mockJob = mockJobs.find(job => job._id === jobId);
       if (!mockJob) {
+        logOperation('error', 'job_management', 'Mock job not found', { jobId });
         return { success: false, message: 'Job not found' };
       }
+      logOperation('info', 'job_management', 'Retrieved mock clone job', { jobId, jobName: mockJob.jobName });
       return { success: true, job: mockJob };
     }
 
     const job = await CloneJob.findById(jobId).lean();
     
     if (!job) {
+      logOperation('error', 'job_management', 'Job not found in database', { jobId });
       return { success: false, message: 'Job not found' };
     }
     
@@ -298,7 +382,10 @@ export async function getCloneJobById(jobId) {
       try {
         decryptedSourceString = decryptConnectionString(job.sourceConnectionString);
       } catch (error) {
-        console.error('Failed to decrypt source connection string:', error);
+        logOperation('error', 'job_management', 'Failed to decrypt source connection string for job retrieval', {
+          jobId,
+          error: error.message
+        });
       }
     }
     
@@ -306,7 +393,10 @@ export async function getCloneJobById(jobId) {
       try {
         decryptedDestinationString = decryptConnectionString(job.destinationConnectionString);
       } catch (error) {
-        console.error('Failed to decrypt destination connection string:', error);
+        logOperation('error', 'job_management', 'Failed to decrypt destination connection string for job retrieval', {
+          jobId,
+          error: error.message
+        });
       }
     }
     
@@ -317,8 +407,19 @@ export async function getCloneJobById(jobId) {
       destinationConnectionString: decryptedDestinationString,
     };
     
+    logOperation('success', 'job_management', 'Retrieved clone job successfully', {
+      jobId,
+      jobName: job.jobName,
+      encrypted: job.encrypted
+    });
+    
     return { success: true, job: decryptedJob };
   } catch (error) {
+    logOperation('error', 'job_management', 'Failed to fetch clone job by ID', {
+      jobId,
+      error: error.message,
+      stack: error.stack
+    });
     console.error('Error fetching clone job:', error);
     return { success: false, message: error.message || 'Failed to fetch job' };
   }

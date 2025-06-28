@@ -3,15 +3,27 @@ import { MongoClient } from 'mongodb';
 import { getCloneJobById } from '@/app/actions/clone-job-actions';
 import { createCloneHistory } from '@/app/actions/clone-history-actions';
 
+// Helper function to log operations (server-side logging)
+function logOperation(level, category, message, details = {}) {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] [${level.toUpperCase()}] [${category.toUpperCase()}] ${message}`, details);
+}
+
 export async function POST(request, { params }) {
   const { jobId } = params;
   const startTime = new Date();
+  
+  logOperation('info', 'clone_operation', 'Clone operation started', {
+    jobId,
+    startTime: startTime.toISOString()
+  });
   
   try {
     // Get job details from our database (this will handle decryption)
     const jobResult = await getCloneJobById(jobId);
     
     if (!jobResult.success || !jobResult.job) {
+      logOperation('error', 'clone_operation', 'Job not found for clone operation', { jobId });
       return NextResponse.json(
         { success: false, message: 'Job not found' },
         { status: 404 }
@@ -21,9 +33,12 @@ export async function POST(request, { params }) {
     const job = jobResult.job;
     const { sourceConnectionString, destinationConnectionString } = job;
 
-    console.log('Starting clone job:', job.jobName);
-    console.log('Source:', sourceConnectionString.replace(/\/\/.*@/, '//***:***@'));
-    console.log('Destination:', destinationConnectionString.replace(/\/\/.*@/, '//***:***@'));
+    logOperation('info', 'clone_operation', 'Starting clone job execution', {
+      jobId,
+      jobName: job.jobName,
+      sourceHost: sourceConnectionString.replace(/\/\/.*@/, '//***:***@'),
+      destinationHost: destinationConnectionString.replace(/\/\/.*@/, '//***:***@')
+    });
 
     // Connect to both source and destination databases
     const sourceClient = new MongoClient(sourceConnectionString, {
@@ -45,31 +60,40 @@ export async function POST(request, { params }) {
     };
 
     try {
-      console.log('Connecting to source database...');
+      logOperation('info', 'clone_operation', 'Connecting to source database', { jobId });
       await sourceClient.connect();
-      console.log('Connected to source database');
+      logOperation('success', 'clone_operation', 'Connected to source database', { jobId });
       
-      console.log('Connecting to destination database...');
+      logOperation('info', 'clone_operation', 'Connecting to destination database', { jobId });
       await destinationClient.connect();
-      console.log('Connected to destination database');
+      logOperation('success', 'clone_operation', 'Connected to destination database', { jobId });
 
       // Extract database name from connection string
       let sourceDbName = extractDatabaseName(sourceConnectionString);
       let destinationDbName = extractDatabaseName(destinationConnectionString);
       
-      console.log('Source database name from connection string:', sourceDbName);
-      console.log('Destination database name from connection string:', destinationDbName);
+      logOperation('info', 'clone_operation', 'Database names extracted', {
+        jobId,
+        sourceDbName,
+        destinationDbName
+      });
 
       // If no database name specified, use "busbuddy" as default
       if (!sourceDbName) {
         sourceDbName = 'busbuddy';
-        console.log('No database name specified in source connection string. Using default:', sourceDbName);
+        logOperation('info', 'clone_operation', 'Using default source database name', {
+          jobId,
+          defaultName: sourceDbName
+        });
       }
 
       // If no destination database name, use the same as source
       if (!destinationDbName) {
         destinationDbName = sourceDbName;
-        console.log(`Using same database name for destination: ${destinationDbName}`);
+        logOperation('info', 'clone_operation', 'Using same database name for destination', {
+          jobId,
+          destinationDbName
+        });
       }
 
       historyData.sourceDatabase = sourceDbName;
@@ -78,13 +102,11 @@ export async function POST(request, { params }) {
       const sourceDb = sourceClient.db(sourceDbName);
       const destinationDb = destinationClient.db(destinationDbName);
 
-      console.log(`Using source database: ${sourceDbName}`);
-      console.log(`Using destination database: ${destinationDbName}`);
-
       // Test connections by getting database stats
       try {
         const sourceStats = await sourceDb.stats();
-        console.log('Source database stats:', {
+        logOperation('info', 'clone_operation', 'Source database stats retrieved', {
+          jobId,
           db: sourceStats.db,
           collections: sourceStats.collections,
           objects: sourceStats.objects,
@@ -96,15 +118,21 @@ export async function POST(request, { params }) {
         if (sourceStats.collections === 0) {
           // If the default "busbuddy" doesn't exist, try to find available databases
           if (sourceDbName === 'busbuddy') {
-            console.log('Default database "busbuddy" is empty. Checking for available databases...');
+            logOperation('warning', 'clone_operation', 'Default database is empty, checking for available databases', { jobId });
             try {
               const sourceAdmin = sourceClient.db().admin();
               const sourceDatabases = await sourceAdmin.listDatabases();
-              console.log('Available databases on source:', sourceDatabases.databases.map(db => ({
+              
+              const availableDbs = sourceDatabases.databases.map(db => ({
                 name: db.name,
                 sizeOnDisk: db.sizeOnDisk,
                 empty: db.empty
-              })));
+              }));
+              
+              logOperation('info', 'clone_operation', 'Available databases found', {
+                jobId,
+                databases: availableDbs
+              });
 
               // Find the first non-system database with data
               const userDatabases = sourceDatabases.databases.filter(db => 
@@ -118,11 +146,17 @@ export async function POST(request, { params }) {
                 historyData.duration = endTime - startTime;
                 historyData.errorMessage = `Database 'busbuddy' is empty. Found these databases with data: ${userDatabases.map(db => db.name).join(', ')}. Please specify the correct database name in your connection string like: mongodb+srv://user:pass@host/DATABASE_NAME?options`;
                 
+                logOperation('error', 'clone_operation', 'Clone failed - empty default database', {
+                  jobId,
+                  availableDatabases: userDatabases.map(db => db.name),
+                  errorMessage: historyData.errorMessage
+                });
+                
                 await createCloneHistory(historyData);
 
                 return NextResponse.json({
                   success: false,
-                  message: `Database 'busbuddy' is empty. Found these databases with data: ${userDatabases.map(db => db.name).join(', ')}. Please specify the correct database name in your connection string like: mongodb+srv://user:pass@host/DATABASE_NAME?options`,
+                  message: historyData.errorMessage,
                   availableDatabases: sourceDatabases.databases.map(db => ({
                     name: db.name,
                     empty: db.empty,
@@ -131,7 +165,10 @@ export async function POST(request, { params }) {
                 });
               }
             } catch (adminError) {
-              console.log('Could not list databases (might not have admin privileges):', adminError.message);
+              logOperation('warning', 'clone_operation', 'Could not list databases (insufficient privileges)', {
+                jobId,
+                error: adminError.message
+              });
             }
           }
 
@@ -141,11 +178,17 @@ export async function POST(request, { params }) {
           historyData.duration = endTime - startTime;
           historyData.errorMessage = `Database '${sourceDbName}' exists but contains no collections. Please verify this is the correct database or specify the database name in your connection string.`;
           
+          logOperation('error', 'clone_operation', 'Clone failed - no collections found', {
+            jobId,
+            sourceDbName,
+            errorMessage: historyData.errorMessage
+          });
+          
           await createCloneHistory(historyData);
 
           return NextResponse.json({
             success: false,
-            message: `Database '${sourceDbName}' exists but contains no collections. Please verify this is the correct database or specify the database name in your connection string.`,
+            message: historyData.errorMessage,
             debug: {
               sourceDbName,
               destinationDbName,
@@ -155,16 +198,26 @@ export async function POST(request, { params }) {
           });
         }
       } catch (error) {
-        console.log('Could not get source database stats:', error.message);
+        logOperation('warning', 'clone_operation', 'Could not get source database stats', {
+          jobId,
+          error: error.message
+        });
       }
 
       // Get all collections from source database
-      console.log('Listing collections from source database...');
+      logOperation('info', 'clone_operation', 'Listing collections from source database', { jobId });
       const collections = await sourceDb.listCollections().toArray();
-      console.log('Found collections:', collections.map(c => ({
+      
+      const collectionInfo = collections.map(c => ({
         name: c.name,
         type: c.type
-      })));
+      }));
+      
+      logOperation('info', 'clone_operation', 'Collections found', {
+        jobId,
+        collections: collectionInfo,
+        count: collections.length
+      });
 
       if (collections.length === 0) {
         const endTime = new Date();
@@ -173,14 +226,17 @@ export async function POST(request, { params }) {
         historyData.duration = endTime - startTime;
         historyData.errorMessage = `No collections found in database '${sourceDbName}'. Please verify: 1. The database name is correct 2. You have read permissions on the database 3. The database contains data`;
         
+        logOperation('error', 'clone_operation', 'Clone failed - no collections found', {
+          jobId,
+          sourceDbName,
+          errorMessage: historyData.errorMessage
+        });
+        
         await createCloneHistory(historyData);
 
         return NextResponse.json({
           success: false,
-          message: `No collections found in database '${sourceDbName}'. Please verify:
-1. The database name is correct
-2. You have read permissions on the database
-3. The database contains data`,
+          message: historyData.errorMessage,
           debug: {
             sourceDbName,
             destinationDbName,
@@ -195,13 +251,25 @@ export async function POST(request, { params }) {
       let totalDocuments = 0;
       let clonedDocuments = 0;
 
+      logOperation('info', 'clone_operation', 'Starting collection processing', {
+        jobId,
+        totalCollections
+      });
+
       for (const collectionInfo of collections) {
         const collectionName = collectionInfo.name;
-        console.log(`Processing collection: ${collectionName}`);
+        logOperation('info', 'clone_operation', 'Processing collection', {
+          jobId,
+          collectionName,
+          progress: `${processedCollections + 1}/${totalCollections}`
+        });
         
         // Skip system collections
         if (collectionName.startsWith('system.')) {
-          console.log(`Skipping system collection: ${collectionName}`);
+          logOperation('info', 'clone_operation', 'Skipping system collection', {
+            jobId,
+            collectionName
+          });
           processedCollections++;
           continue;
         }
@@ -212,26 +280,45 @@ export async function POST(request, { params }) {
         try {
           // Get document count
           const documentCount = await sourceCollection.countDocuments();
-          console.log(`Collection ${collectionName} has ${documentCount} documents`);
+          logOperation('info', 'clone_operation', 'Collection document count', {
+            jobId,
+            collectionName,
+            documentCount
+          });
           totalDocuments += documentCount;
 
           if (documentCount === 0) {
-            console.log(`Collection ${collectionName} is empty, skipping...`);
+            logOperation('info', 'clone_operation', 'Skipping empty collection', {
+              jobId,
+              collectionName
+            });
             processedCollections++;
             continue;
           }
 
           // Clear destination collection first
-          console.log(`Clearing destination collection: ${collectionName}`);
+          logOperation('info', 'clone_operation', 'Clearing destination collection', {
+            jobId,
+            collectionName
+          });
           const deleteResult = await destinationCollection.deleteMany({});
-          console.log(`Deleted ${deleteResult.deletedCount} existing documents from ${collectionName}`);
+          logOperation('info', 'clone_operation', 'Destination collection cleared', {
+            jobId,
+            collectionName,
+            deletedCount: deleteResult.deletedCount
+          });
 
           // Stream documents from source to destination
           const batchSize = 1000;
           let batch = [];
           let processedInCollection = 0;
 
-          console.log(`Starting to clone documents from ${collectionName}...`);
+          logOperation('info', 'clone_operation', 'Starting document cloning', {
+            jobId,
+            collectionName,
+            batchSize
+          });
+          
           const cursor = sourceCollection.find({});
           
           for await (const doc of cursor) {
@@ -241,7 +328,13 @@ export async function POST(request, { params }) {
             if (batch.length >= batchSize) {
               await destinationCollection.insertMany(batch);
               clonedDocuments += batch.length;
-              console.log(`Inserted batch of ${batch.length} documents into ${collectionName} (${processedInCollection}/${documentCount})`);
+              logOperation('debug', 'clone_operation', 'Batch inserted', {
+                jobId,
+                collectionName,
+                batchSize: batch.length,
+                progress: `${processedInCollection}/${documentCount}`,
+                totalCloned: clonedDocuments
+              });
               batch = [];
             }
           }
@@ -250,14 +343,28 @@ export async function POST(request, { params }) {
           if (batch.length > 0) {
             await destinationCollection.insertMany(batch);
             clonedDocuments += batch.length;
-            console.log(`Inserted final batch of ${batch.length} documents into ${collectionName}`);
+            logOperation('debug', 'clone_operation', 'Final batch inserted', {
+              jobId,
+              collectionName,
+              batchSize: batch.length,
+              totalCloned: clonedDocuments
+            });
           }
 
-          console.log(`Completed cloning collection ${collectionName}: ${processedInCollection} documents`);
+          logOperation('success', 'clone_operation', 'Collection cloning completed', {
+            jobId,
+            collectionName,
+            documentsCloned: processedInCollection
+          });
           processedCollections++;
 
         } catch (collectionError) {
-          console.error(`Error processing collection ${collectionName}:`, collectionError);
+          logOperation('error', 'clone_operation', 'Error processing collection', {
+            jobId,
+            collectionName,
+            error: collectionError.message,
+            stack: collectionError.stack
+          });
           // Continue with other collections even if one fails
           processedCollections++;
         }
@@ -281,7 +388,19 @@ export async function POST(request, { params }) {
 
       await createCloneHistory(historyData);
 
-      console.log('Clone operation completed successfully');
+      logOperation('success', 'clone_operation', 'Clone operation completed successfully', {
+        jobId,
+        jobName: job.jobName,
+        duration: Math.round(duration / 1000),
+        stats: {
+          totalCollections,
+          processedCollections,
+          totalDocuments,
+          clonedDocuments,
+          sourceDatabase: sourceDbName,
+          destinationDatabase: destinationDbName
+        }
+      });
 
       return NextResponse.json({
         success: true,
@@ -299,14 +418,18 @@ export async function POST(request, { params }) {
 
     } finally {
       // Close connections
-      console.log('Closing database connections...');
+      logOperation('info', 'clone_operation', 'Closing database connections', { jobId });
       await sourceClient.close();
       await destinationClient.close();
-      console.log('Database connections closed');
+      logOperation('info', 'clone_operation', 'Database connections closed', { jobId });
     }
 
   } catch (error) {
-    console.error('Cloning error:', error);
+    logOperation('error', 'clone_operation', 'Clone operation failed', {
+      jobId,
+      error: error.message,
+      stack: error.stack
+    });
     
     const endTime = new Date();
     const duration = endTime - startTime;
@@ -330,7 +453,10 @@ export async function POST(request, { params }) {
         failedHistoryData.jobName = jobResult.job.jobName;
       }
     } catch (jobError) {
-      console.error('Could not fetch job details for history:', jobError);
+      logOperation('error', 'clone_operation', 'Could not fetch job details for history', {
+        jobId,
+        error: jobError.message
+      });
     }
 
     await createCloneHistory(failedHistoryData);
