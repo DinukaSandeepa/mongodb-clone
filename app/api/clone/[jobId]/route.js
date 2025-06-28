@@ -50,9 +50,9 @@ export async function POST(request, { params }) {
       console.log('Source database name from connection string:', sourceDbName);
       console.log('Destination database name from connection string:', destinationDbName);
 
-      // If no database name specified, use "database" as default
+      // If no database name specified, use "busbuddy" as default
       if (!sourceDbName) {
-        sourceDbName = 'database';
+        sourceDbName = 'busbuddy';
         console.log('No database name specified in source connection string. Using default:', sourceDbName);
       }
 
@@ -81,9 +81,9 @@ export async function POST(request, { params }) {
         });
 
         if (sourceStats.collections === 0) {
-          // If the default "database" doesn't exist, try to find available databases
-          if (sourceDbName === 'database') {
-            console.log('Default database "database" is empty. Checking for available databases...');
+          // If the default "busbuddy" doesn't exist, try to find available databases
+          if (sourceDbName === 'busbuddy') {
+            console.log('Default database "busbuddy" is empty. Checking for available databases...');
             try {
               const sourceAdmin = sourceClient.db().admin();
               const sourceDatabases = await sourceAdmin.listDatabases();
@@ -101,7 +101,7 @@ export async function POST(request, { params }) {
               if (userDatabases.length > 0) {
                 return NextResponse.json({
                   success: false,
-                  message: `Database 'database' is empty. Found these databases with data: ${userDatabases.map(db => db.name).join(', ')}. Please specify the correct database name in your connection string like: mongodb+srv://user:pass@host/DATABASE_NAME?options`,
+                  message: `Database 'busbuddy' is empty. Found these databases with data: ${userDatabases.map(db => db.name).join(', ')}. Please specify the correct database name in your connection string like: mongodb+srv://user:pass@host/DATABASE_NAME?options`,
                   availableDatabases: sourceDatabases.databases.map(db => ({
                     name: db.name,
                     empty: db.empty,
