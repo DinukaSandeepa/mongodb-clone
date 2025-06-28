@@ -47,7 +47,7 @@ export async function createCloneJob(formData) {
     const destinationConnectionString = formData.get('destinationConnectionString');
     
     // Check if encryption should be enabled
-    const encryptConnections = shouldEncryptConnections();
+    let encryptConnections = shouldEncryptConnections();
     
     let processedSourceString = sourceConnectionString;
     let processedDestinationString = destinationConnectionString;
@@ -118,7 +118,7 @@ export async function updateCloneJob(jobId, formData) {
     const destinationConnectionString = formData.get('destinationConnectionString');
     
     // Check if encryption should be enabled
-    const encryptConnections = shouldEncryptConnections();
+    let encryptConnections = shouldEncryptConnections();
     
     let processedSourceString = sourceConnectionString;
     let processedDestinationString = destinationConnectionString;
