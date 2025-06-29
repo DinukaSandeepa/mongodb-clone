@@ -336,18 +336,6 @@ export default function SettingsContent() {
                   onCheckedChange={(checked) => handleSettingChange('requireConfirmation', checked)}
                 />
               </div>
-              
-              <Separator />
-              
-              <div className="space-y-2">
-                <Label htmlFor="sessionTimeout">Session Timeout (minutes)</Label>
-                <Input
-                  id="sessionTimeout"
-                  type="number"
-                  value={settings.sessionTimeout || 30}
-                  onChange={(e) => handleSettingChange('sessionTimeout', parseInt(e.target.value))}
-                />
-              </div>
             </CardContent>
           </Card>
 
