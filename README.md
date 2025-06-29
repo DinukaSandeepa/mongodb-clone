@@ -119,10 +119,82 @@ public/        # Static assets
 ---
 
 ## Google OAuth2 Setup for Email
-1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials) and create OAuth 2.0 credentials.
-2. Use [Google OAuth Playground](https://developers.google.com/oauthplayground/) to obtain a refresh token for Gmail SMTP.
-3. Set the credentials in your `.env.local` file.
-4. Restart the app after updating environment variables.
+
+To enable email notifications, you need to set up Google OAuth2 credentials and obtain a refresh token. This process allows your application to send emails on your behalf without storing your Gmail password.
+
+### Step 1: Create OAuth 2.0 Credentials in Google Cloud Console
+
+1.  **Go to Google Cloud Console**: Open your web browser and navigate to the [Google Cloud Console](https://console.cloud.google.com/).
+2.  **Select or Create a Project**:
+    *   If you have an existing project, select it from the top-left dropdown.
+    *   If not, create a new project by clicking "Select a project" -> "New Project" and follow the prompts.
+3.  **Enable Gmail API**:
+    *   In the Google Cloud Console, navigate to "APIs & Services" > "Enabled APIs & services".
+    *   Click "+ Enable APIs and Services".
+    *   Search for "Gmail API" and enable it.
+4.  **Create Credentials**:
+    *   Navigate to "APIs & Services" > "Credentials".
+    *   Click "+ Create Credentials" and select "OAuth client ID".
+    *   For "Application type", choose "Web application".
+    *   Give your OAuth client a descriptive name (e.g., `MongoDB Clone Emailer`).
+    *   **Authorized JavaScript origins**:
+        *   For local development, add `http://localhost:3000` (or whatever port your Next.js app runs on).
+        *   For production, add your deployed application's URL (e.g., `https://your-app-domain.com`).
+    *   **Authorized redirect URIs**:
+        *   Add `https://developers.google.com/oauthplayground` (this is crucial for obtaining the refresh token in the next step).
+    *   Click "Create".
+5.  **Download Credentials**: A pop-up will show your Client ID and Client Secret. Copy these values. You can also download the `client_secret.json` file, but for `.env` setup, copying the values directly is often easier.
+    *   **`GOOGLE_CLIENT_ID`**: Your OAuth2 Client ID.
+    *   **`GOOGLE_CLIENT_SECRET`**: Your OAuth2 Client Secret.
+
+### Step 2: Obtain the Refresh Token using Google OAuth Playground
+
+A refresh token is a long-lived credential that allows your application to obtain new access tokens without re-prompting the user for authorization.
+
+1.  **Go to Google OAuth Playground**: Open a new tab and navigate to the [Google OAuth Playground](https://developers.google.com/oauthplayground/).
+2.  **Configure OAuth 2.0**:
+    *   In the top-right corner, click the gear icon (⚙️) for "OAuth 2.0 configuration".
+    *   Check "Use your own OAuth credentials".
+    *   Enter your `GOOGLE_CLIENT_ID` into the "OAuth Client ID" field.
+    *   Enter your `GOOGLE_CLIENT_SECRET` into the "OAuth Client secret" field.
+    *   Close the configuration box.
+3.  **Select Gmail API Scope**:
+    *   On the left sidebar, under "Step 1: Select & authorize APIs", search for and expand "Gmail API v1".
+    *   Select the scope `https://mail.google.com/` (Send, delete, and read your email). This is the most permissive scope required for sending emails.
+    *   Click "Authorize APIs".
+4.  **Grant Permissions**:
+    *   You will be redirected to a Google sign-in page. Sign in with the Gmail account you want to use for sending notifications.
+    *   Grant the requested permissions.
+5.  **Exchange Authorization Code for Tokens**:
+    *   After granting permissions, you will be redirected back to the OAuth Playground.
+    *   Under "Step 2: Exchange authorization code for tokens", click "Exchange authorization code for tokens".
+    *   The "Refresh token" will appear. **Copy this value carefully**. This is your `GOOGLE_REFRESH_TOKEN`.
+
+### Step 3: Update Your Environment Variables
+
+Now that you have all the necessary credentials, update your `.env.local` file (or your deployment's environment variables) with the following:
+
+```env
+# Google OAuth2 for Gmail SMTP
+GOOGLE_CLIENT_ID=your-google-client-id-from-step-1
+GOOGLE_CLIENT_SECRET=your-google-client-secret-from-step-1
+GOOGLE_REFRESH_TOKEN=your-google-refresh-token-from-step-2
+GOOGLE_USER_EMAIL=the-gmail-account-you-authorized@gmail.com
+```
+
+**Important**: The `GOOGLE_USER_EMAIL` must be the exact Gmail address of the account you used to generate the OAuth2 credentials and refresh token.
+
+### Step 4: Restart the Application
+
+After updating your environment variables, restart your Next.js application to ensure the new variables are loaded.
+
+```bash
+npm run dev # for development
+# or
+npm start # for production
+```
+
+Your MongoDB Clone Manager should now be able to send email notifications. You can test the configuration from the application's settings page.
 
 ---
 
