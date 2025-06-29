@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import emailService from '@/lib/email';
-import logger, { LogLevel, LogCategory } from '@/lib/logger';
+import logger, { LogLevel, LogCategory } from '@/lib/logger.server';
 
 export async function POST(request) {
   try {
-    const { email, jobDetails, error } = await request.json();
+    const { jobDetails, error } = await request.json();
+    const email = jobDetails?.notificationEmail;
     
     if (!email || !jobDetails) {
       return NextResponse.json(
