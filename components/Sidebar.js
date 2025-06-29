@@ -93,7 +93,7 @@ export default function Sidebar({ activeTab, onTabChange, jobCount = 0 }) {
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
+        <div className="flex items-center justify-between p-3 border-b flex-shrink-0">
           {!isCollapsed && (
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg">
@@ -144,7 +144,7 @@ export default function Sidebar({ activeTab, onTabChange, jobCount = 0 }) {
         {/* Scrollable content area */}
         <div className="flex-1 w-full">
           {/* Navigation */}
-          <div className="p-4 space-y-2">
+          <div className="p-2 space-y-2 w-full">
             {!isCollapsed && (
               <div className="px-2 py-1">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
