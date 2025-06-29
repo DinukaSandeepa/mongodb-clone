@@ -27,6 +27,7 @@ import { useConfirmation } from '@/hooks/useConfirmation';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
 import { getSetting } from '@/lib/settings';
 import logger, { LogLevel, LogCategory } from '@/lib/logger';
+import notificationManager from '@/lib/notifications';
 
 export default function JobList({ jobs, onJobsChange }) {
   const [loadingJobs, setLoadingJobs] = useState(new Set());
@@ -70,6 +71,19 @@ export default function JobList({ jobs, onJobsChange }) {
             duration: result.stats?.duration,
             timestamp: new Date().toISOString()
           });
+
+          // Send success notification
+          try {
+            await notificationManager.sendCloneSuccessNotification({
+              jobName: job.jobName,
+              duration: result.stats?.duration,
+              collections: result.stats?.processedCollections,
+              documents: result.stats?.clonedDocuments,
+              stats: result.stats
+            });
+          } catch (notificationError) {
+            console.error('Failed to send success notification:', notificationError);
+          }
         } else {
           toast.error(result.message || 'Clone failed');
           
@@ -81,6 +95,19 @@ export default function JobList({ jobs, onJobsChange }) {
             details: result.details,
             timestamp: new Date().toISOString()
           });
+
+          // Send error notification
+          try {
+            await notificationManager.sendCloneErrorNotification(
+              {
+                jobName: job.jobName,
+                duration: result.duration
+              },
+              result.message || 'Clone operation failed'
+            );
+          } catch (notificationError) {
+            console.error('Failed to send error notification:', notificationError);
+          }
         }
       } catch (error) {
         console.error('Clone error:', error);
@@ -94,6 +121,18 @@ export default function JobList({ jobs, onJobsChange }) {
           stack: error.stack,
           timestamp: new Date().toISOString()
         });
+
+        // Send error notification
+        try {
+          await notificationManager.sendCloneErrorNotification(
+            {
+              jobName: job.jobName
+            },
+            error.message || 'Unexpected error occurred during clone operation'
+          );
+        } catch (notificationError) {
+          console.error('Failed to send error notification:', notificationError);
+        }
       } finally {
         setLoadingJobs(prev => {
           const newSet = new Set(prev);

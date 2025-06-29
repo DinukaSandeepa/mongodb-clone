@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { 
   Settings, 
   Shield, 
@@ -17,18 +18,27 @@ import {
   Unlock,
   CheckCircle,
   Activity,
-  AlertTriangle
+  AlertTriangle,
+  Mail,
+  Send,
+  Loader2,
+  AlertCircle,
+  Info,
+  ExternalLink
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSettings, saveSettings, resetSettings } from '@/lib/settings';
 import logger, { LogLevel, LogCategory } from '@/lib/logger';
 import { useConfirmation } from '@/hooks/useConfirmation';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
+import notificationManager from '@/lib/notifications';
 
 export default function SettingsContent() {
   const [settings, setSettings] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [emailStatus, setEmailStatus] = useState({ configured: false, loading: true });
   const { confirmationState, showConfirmation, handleConfirm, handleCancel } = useConfirmation();
 
   useEffect(() => {
@@ -40,6 +50,9 @@ export default function SettingsContent() {
     // Log settings page access
     logger.info(LogCategory.USER_ACTION, 'Settings page accessed');
 
+    // Check email configuration status
+    checkEmailStatus();
+
     // Listen for settings changes from other components
     const handleSettingsChange = (event) => {
       setSettings(event.detail);
@@ -48,6 +61,16 @@ export default function SettingsContent() {
     window.addEventListener('settingsChanged', handleSettingsChange);
     return () => window.removeEventListener('settingsChanged', handleSettingsChange);
   }, []);
+
+  const checkEmailStatus = async () => {
+    try {
+      const status = await notificationManager.getEmailStatus();
+      setEmailStatus({ ...status, loading: false });
+    } catch (error) {
+      console.error('Failed to check email status:', error);
+      setEmailStatus({ configured: false, loading: false, error: error.message });
+    }
+  };
 
   const handleSettingChange = (key, value) => {
     const updatedSettings = { ...settings, [key]: value };
@@ -75,7 +98,9 @@ export default function SettingsContent() {
         settingsCount: Object.keys(settings).length,
         encryptionEnabled: settings.encryptConnections,
         loggingEnabled: settings.logOperations,
-        confirmationRequired: settings.requireConfirmation
+        confirmationRequired: settings.requireConfirmation,
+        emailNotifications: settings.emailNotifications,
+        notificationEmail: settings.notificationEmail ? '***@***.***' : 'not set'
       });
     } catch (error) {
       toast.error('Failed to save settings');
@@ -86,6 +111,37 @@ export default function SettingsContent() {
       console.error('Settings save error:', error);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTestEmail = async () => {
+    if (!settings.notificationEmail) {
+      toast.error('Please enter an email address first');
+      return;
+    }
+
+    setTestingEmail(true);
+    
+    try {
+      const result = await notificationManager.testEmailConfiguration(settings.notificationEmail);
+      
+      if (result.success) {
+        toast.success('Test email sent successfully!', {
+          description: 'Check your inbox for the test email.',
+          icon: <CheckCircle className="h-4 w-4" />
+        });
+      } else {
+        toast.error('Failed to send test email', {
+          description: result.message || 'Please check your email configuration.',
+        });
+      }
+    } catch (error) {
+      toast.error('Failed to send test email', {
+        description: 'An unexpected error occurred.',
+      });
+      console.error('Test email error:', error);
+    } finally {
+      setTestingEmail(false);
     }
   };
 
@@ -126,6 +182,33 @@ export default function SettingsContent() {
     } else {
       performReset();
     }
+  };
+
+  const getEmailStatusBadge = () => {
+    if (emailStatus.loading) {
+      return (
+        <Badge variant="outline" className="text-blue-600 border-blue-600">
+          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+          Checking...
+        </Badge>
+      );
+    }
+
+    if (emailStatus.configured) {
+      return (
+        <Badge variant="outline" className="text-green-600 border-green-600">
+          <CheckCircle className="h-3 w-3 mr-1" />
+          Configured
+        </Badge>
+      );
+    }
+
+    return (
+      <Badge variant="outline" className="text-red-600 border-red-600">
+        <AlertCircle className="h-3 w-3 mr-1" />
+        Not Configured
+      </Badge>
+    );
   };
 
   if (loading) {
@@ -273,18 +356,69 @@ export default function SettingsContent() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Bell className="h-5 w-5" />
-                Notifications
+                Email Notifications
               </CardTitle>
               <CardDescription>
-                Configure notification preferences
+                Configure email notification preferences using OAuth 2.0
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Email Configuration Status */}
+              <div className="p-3 border rounded-lg bg-muted/30">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-blue-600" />
+                    <span className="font-medium">Email Service Status</span>
+                  </div>
+                  {getEmailStatusBadge()}
+                </div>
+                
+                {!emailStatus.configured && !emailStatus.loading && (
+                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                    <div className="flex items-start gap-2">
+                      <Info className="h-3 w-3 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-blue-700">
+                        <p className="font-medium mb-1">Email notifications require OAuth 2.0 setup:</p>
+                        <ol className="list-decimal list-inside space-y-1 text-xs">
+                          <li>Create Google Cloud Console project</li>
+                          <li>Enable Gmail API</li>
+                          <li>Create OAuth 2.0 credentials</li>
+                          <li>Get refresh token from OAuth Playground</li>
+                          <li>Set environment variables</li>
+                        </ol>
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 text-xs text-blue-600 mt-1"
+                          onClick={() => window.open('https://developers.google.com/gmail/api/quickstart/nodejs', '_blank')}
+                        >
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          Setup Guide
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {emailStatus.missing && emailStatus.missing.length > 0 && (
+                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs">
+                    <p className="text-red-700 font-medium">Missing environment variables:</p>
+                    <ul className="text-red-600 mt-1">
+                      {emailStatus.missing.map(envVar => (
+                        <li key={envVar} className="font-mono">• {envVar}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Email Settings */}
               <div className="flex items-center space-x-2">
                 <Switch 
                   id="emailNotifications" 
                   checked={settings.emailNotifications || false}
                   onCheckedChange={(checked) => handleSettingChange('emailNotifications', checked)}
+                  disabled={!emailStatus.configured}
                 />
                 <Label htmlFor="emailNotifications">Email notifications</Label>
               </div>
@@ -320,13 +454,41 @@ export default function SettingsContent() {
               
               <div className="space-y-2">
                 <Label htmlFor="notificationEmail">Notification Email</Label>
-                <Input
-                  id="notificationEmail"
-                  type="email"
-                  value={settings.notificationEmail || ''}
-                  onChange={(e) => handleSettingChange('notificationEmail', e.target.value)}
-                  placeholder="admin@example.com"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="notificationEmail"
+                    type="email"
+                    value={settings.notificationEmail || ''}
+                    onChange={(e) => handleSettingChange('notificationEmail', e.target.value)}
+                    placeholder="admin@example.com"
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestEmail}
+                    disabled={testingEmail || !settings.notificationEmail || !emailStatus.configured}
+                    className="gap-2"
+                  >
+                    {testingEmail ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Testing...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4" />
+                        Test
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {emailStatus.configured 
+                    ? 'Enter email address to receive notifications and test the configuration'
+                    : 'Configure OAuth 2.0 credentials to enable email notifications'
+                  }
+                </p>
               </div>
             </CardContent>
           </Card>
