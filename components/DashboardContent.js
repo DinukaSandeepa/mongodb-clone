@@ -367,34 +367,6 @@ export default function DashboardContent({ jobs = [] }) {
           </CardContent>
         </Card>
       </div>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>
-            Common tasks and operations
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <Button className="h-20 flex-col gap-2" variant="outline">
-              <Copy className="h-6 w-6" />
-              <span>New Clone Job</span>
-            </Button>
-            
-            <Button className="h-20 flex-col gap-2" variant="outline">
-              <Activity className="h-6 w-6" />
-              <span>View History</span>
-            </Button>
-            
-            <Button className="h-20 flex-col gap-2" variant="outline">
-              <Database className="h-6 w-6" />
-              <span>Test Connection</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
