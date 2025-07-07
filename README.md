@@ -35,7 +35,7 @@ A modern, full-stack Next.js application for managing MongoDB clone jobs, job hi
 
 ### Installation
 ```bash
-git clone https://github.com/your-username/mongodb-clone.git
+git clone https://github.com/DinukaSandeepa/mongodb-clone.git
 cd mongodb-clone
 npm install
 ```
